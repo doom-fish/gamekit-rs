@@ -1,3 +1,4 @@
+// swiftlint:disable identifier_name
 import Foundation
 import GameKit
 
@@ -6,7 +7,14 @@ let GK_TIMED_OUT: Int32 = -2
 let GK_NOT_AUTHENTICATED: Int32 = -3
 let GK_FRAMEWORK_ERROR: Int32 = -4
 let GK_NOT_FOUND: Int32 = -5
+let GK_UNAVAILABLE: Int32 = -6
 let GK_UNKNOWN: Int32 = -99
+
+private let gkDateFormatter: ISO8601DateFormatter = {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return formatter
+}()
 
 @inline(__always)
 func gkCString(_ string: String) -> UnsafeMutablePointer<CChar>? {
@@ -37,6 +45,7 @@ enum GKBridgeError: Error, CustomStringConvertible {
     case timedOut(String)
     case notAuthenticated(String)
     case notFound(String)
+    case unavailable(String)
     case unknown(String)
 
     var statusCode: Int32 {
@@ -47,6 +56,8 @@ enum GKBridgeError: Error, CustomStringConvertible {
             return GK_NOT_AUTHENTICATED
         case .notFound:
             return GK_NOT_FOUND
+        case .unavailable:
+            return GK_UNAVAILABLE
         case .unknown:
             return GK_UNKNOWN
         }
@@ -57,6 +68,7 @@ enum GKBridgeError: Error, CustomStringConvertible {
         case .timedOut(let message),
              .notAuthenticated(let message),
              .notFound(let message),
+             .unavailable(let message),
              .unknown(let message):
             return message
         }
@@ -68,6 +80,17 @@ struct GKFrameworkErrorPayload: Encodable {
     let domain: String
     let code: Int
     let localizedDescription: String
+}
+
+struct GKBinaryPayload: Encodable {
+    let dataBase64: String
+}
+
+func gkDateString(_ date: Date?) -> String? {
+    guard let date else {
+        return nil
+    }
+    return gkDateFormatter.string(from: date)
 }
 
 func gkEncodeJSON<T: Encodable>(_ value: T) throws -> String {
@@ -89,6 +112,10 @@ func gkDecodeJSON<T: Decodable>(_ cString: UnsafePointer<CChar>?, as type: T.Typ
     } catch {
         throw GKBridgeError.unknown("invalid JSON payload: \(error.localizedDescription)")
     }
+}
+
+func gkBinaryPayloadJSON(_ data: Data) throws -> String {
+    try gkEncodeJSON(GKBinaryPayload(dataBase64: data.base64EncodedString()))
 }
 
 func gkStatusFor(_ error: Error) -> Int32 {
@@ -154,20 +181,30 @@ func gkBlockOnAsync<T>(
     }
 }
 
-struct GKPlayerPayload: Codable {
-    let gamePlayerID: String
-    let teamPlayerID: String
-    let alias: String
-    let displayName: String
-    let playerID: String?
+func gkLoadPlayers(identifiedBy ids: [String]) async throws -> [GKPlayer] {
+    if ids.isEmpty {
+        return []
+    }
+
+    return try await withCheckedThrowingContinuation { continuation in
+        GKLocalPlayer.local.loadFriends(identifiedBy: ids) { players, error in
+            if let error {
+                continuation.resume(throwing: error)
+            } else {
+                continuation.resume(returning: players ?? [])
+            }
+        }
+    }
 }
 
-func gkPlayerPayload(from player: GKPlayer) -> GKPlayerPayload {
-    return GKPlayerPayload(
-        gamePlayerID: player.gamePlayerID,
-        teamPlayerID: player.teamPlayerID,
-        alias: player.alias,
-        displayName: player.displayName,
-        playerID: nil
-    )
+func gkResolvePlayers(byGameIDs ids: [String], preferred: [GKPlayer] = []) async throws -> [String: GKPlayer] {
+    var resolved = Dictionary(uniqueKeysWithValues: preferred.map { ($0.gamePlayerID, $0) })
+    let unresolved = ids.filter { resolved[$0] == nil }
+    if !unresolved.isEmpty {
+        let loaded = try await gkLoadPlayers(identifiedBy: unresolved)
+        for player in loaded {
+            resolved[player.gamePlayerID] = player
+        }
+    }
+    return resolved
 }

@@ -3,6 +3,7 @@
 use core::ffi::c_char;
 use std::ffi::{CStr, CString};
 
+use base64::Engine;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -25,6 +26,12 @@ pub fn json_cstring<T: Serialize + ?Sized>(
     cstring_from_str(&json, context)
 }
 
+pub fn decode_base64(value: &str, context: &str) -> Result<Vec<u8>, GameKitError> {
+    base64::engine::general_purpose::STANDARD
+        .decode(value)
+        .map_err(|error| GameKitError::Unknown(format!("failed to decode {context} bytes: {error}")))
+}
+
 pub unsafe fn take_string(ptr: *mut c_char) -> Option<String> {
     if ptr.is_null() {
         return None;
@@ -38,9 +45,8 @@ pub unsafe fn parse_json_ptr<T: DeserializeOwned>(
     ptr: *mut c_char,
     context: &str,
 ) -> Result<T, GameKitError> {
-    let json = take_string(ptr).ok_or_else(|| {
-        GameKitError::Unknown(format!("missing JSON payload for {context}"))
-    })?;
+    let json = take_string(ptr)
+        .ok_or_else(|| GameKitError::Unknown(format!("missing JSON payload for {context}")))?;
     serde_json::from_str(&json).map_err(|error| {
         GameKitError::Unknown(format!(
             "failed to parse {context} JSON: {error}; payload={json}"

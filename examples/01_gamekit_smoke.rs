@@ -6,6 +6,11 @@ use std::process::Command;
 use gamekit::LocalPlayer;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if env::var_os("GAMEKIT_RS_RUN_LIVE").is_none() {
+        println!("Set GAMEKIT_RS_RUN_LIVE=1 to run the bundled LocalPlayer smoke test.");
+        return Ok(());
+    }
+
     if env::var_os("GAMEKIT_SMOKE_BUNDLED").is_none() {
         return relaunch_inside_app_bundle();
     }

@@ -1,9 +1,8 @@
 use core::ffi::c_char;
-use std::ops::Range;
 
 use serde::Deserialize;
 
-use crate::{ffi, private, GameKitError, Player};
+use crate::{ffi, private, GameKitError};
 
 /// Type of leaderboard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,30 +27,15 @@ pub enum TimeScope {
 }
 
 /// Represents a Game Center leaderboard.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Leaderboard {
     pub base_leaderboard_id: String,
     pub title: Option<String>,
+    pub group_identifier: Option<String>,
     pub leaderboard_type: LeaderboardType,
-}
-
-/// A single entry in a leaderboard.
-#[derive(Debug, Clone)]
-pub struct LeaderboardEntry {
-    pub rank: i64,
-    pub score: i64,
-    pub formatted_score: String,
-    pub context: u64,
-    pub date: String,
-    pub player: Player,
-}
-
-/// Result of loading leaderboard entries.
-#[derive(Debug, Clone)]
-pub struct LoadEntriesResult {
-    pub local_player_entry: Option<LeaderboardEntry>,
-    pub entries: Vec<LeaderboardEntry>,
-    pub total_player_count: i64,
+    pub start_date: Option<String>,
+    pub next_start_date: Option<String>,
+    pub duration_seconds: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -59,76 +43,75 @@ pub struct LoadEntriesResult {
 struct LeaderboardPayload {
     base_leaderboard_id: String,
     title: Option<String>,
+    group_identifier: Option<String>,
     leaderboard_type: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct LeaderboardEntryPayload {
-    rank: i64,
-    score: i64,
-    formatted_score: String,
-    context: u64,
-    date: String,
-    player: Player,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct LoadEntriesPayload {
-    local_player_entry: Option<LeaderboardEntryPayload>,
-    entries: Vec<LeaderboardEntryPayload>,
-    total_player_count: i64,
+    start_date: Option<String>,
+    next_start_date: Option<String>,
+    duration_seconds: Option<f64>,
 }
 
 impl Leaderboard {
-    /// Loads leaderboards by their IDs.
-    pub fn load<I, S>(ids: I) -> Result<Vec<Self>, GameKitError>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
-        let ids_vec: Vec<String> = ids.into_iter().map(|s| s.as_ref().to_owned()).collect();
-        let ids_refs: Vec<&str> = ids_vec.iter().map(String::as_str).collect();
-        let ids_json = private::json_cstring(&ids_refs, "leaderboard IDs")?;
+    /// Loads leaderboards by their identifiers.
+    pub fn load(ids: &[&str]) -> Result<Vec<Self>, GameKitError> {
+        let ids_json = if ids.is_empty() {
+            None
+        } else {
+            Some(private::json_cstring(ids, "leaderboard identifiers")?)
+        };
 
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_leaderboard_load_json(
-                ids_json.as_ptr(),
+                ids_json.as_ref().map_or(std::ptr::null(), |json| json.as_ptr()),
                 &mut out_json,
                 &mut out_error,
             );
-
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
 
             let payloads: Vec<LeaderboardPayload> =
                 private::parse_json_ptr(out_json, "leaderboards")?;
-
-            Ok(payloads
-                .into_iter()
-                .map(|p| Self {
-                    base_leaderboard_id: p.base_leaderboard_id,
-                    title: p.title,
-                    leaderboard_type: match p.leaderboard_type.as_str() {
-                        "recurring" => LeaderboardType::Recurring,
-                        _ => LeaderboardType::Classic,
-                    },
-                })
-                .collect())
+            Ok(payloads.into_iter().map(Self::from_payload).collect())
         }
     }
 
-    /// Submits a score to multiple leaderboards.
+    /// Loads every leaderboard available to the current game.
+    pub fn load_all() -> Result<Vec<Self>, GameKitError> {
+        Self::load(&[])
+    }
+
+    /// Loads the previous occurrence for a recurring leaderboard.
+    pub fn load_previous_occurrence(&self) -> Result<Option<Self>, GameKitError> {
+        let leaderboard_id =
+            private::cstring_from_str(&self.base_leaderboard_id, "leaderboard identifier")?;
+
+        unsafe {
+            let mut out_json: *mut c_char = std::ptr::null_mut();
+            let mut out_error: *mut c_char = std::ptr::null_mut();
+            let status = ffi::gk_leaderboard_load_previous_occurrence_json(
+                leaderboard_id.as_ptr(),
+                &mut out_json,
+                &mut out_error,
+            );
+            if status != ffi::status::OK {
+                return Err(private::error_from_status(status, out_error));
+            }
+
+            let payload: Option<LeaderboardPayload> =
+                private::parse_json_ptr(out_json, "previous leaderboard occurrence")?;
+            Ok(payload.map(Self::from_payload))
+        }
+    }
+
+    /// Submits a score to multiple leaderboards for the local player.
     pub fn submit_score(
         score: i64,
         context: u64,
         leaderboard_ids: &[&str],
     ) -> Result<(), GameKitError> {
-        let ids_json = private::json_cstring(&leaderboard_ids, "leaderboard IDs")?;
+        let ids_json = private::json_cstring(leaderboard_ids, "leaderboard identifiers")?;
 
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
@@ -138,81 +121,45 @@ impl Leaderboard {
                 ids_json.as_ptr(),
                 &mut out_error,
             );
-
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
-
             Ok(())
         }
     }
 
-    /// Loads entries for this leaderboard.
-    pub fn load_entries(
-        &self,
-        player_scope: PlayerScope,
-        time_scope: TimeScope,
-        range: Range<usize>,
-    ) -> Result<LoadEntriesResult, GameKitError> {
-        let id_cstring = private::cstring_from_str(&self.base_leaderboard_id, "leaderboard ID")?;
-
-        let player_scope_i32 = match player_scope {
-            PlayerScope::Global => 0,
-            PlayerScope::FriendsOnly => 1,
-        };
-
-        let time_scope_i32 = match time_scope {
-            TimeScope::Today => 0,
-            TimeScope::Week => 1,
-            TimeScope::AllTime => 2,
-        };
-
-        let range_location = range.start + 1;
-        let range_length = range.end.saturating_sub(range.start);
+    /// Submits a score to this leaderboard for the local player.
+    pub fn submit_local_score(&self, score: i64, context: u64) -> Result<(), GameKitError> {
+        let leaderboard_id =
+            private::cstring_from_str(&self.base_leaderboard_id, "leaderboard identifier")?;
 
         unsafe {
-            let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_leaderboard_load_entries_json(
-                id_cstring.as_ptr(),
-                player_scope_i32,
-                time_scope_i32,
-                range_location,
-                range_length,
-                &mut out_json,
+            let status = ffi::gk_leaderboard_submit_score_for_id(
+                score,
+                context,
+                leaderboard_id.as_ptr(),
                 &mut out_error,
             );
-
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
+            Ok(())
+        }
+    }
 
-            let payload: LoadEntriesPayload =
-                private::parse_json_ptr(out_json, "load entries result")?;
-
-            Ok(LoadEntriesResult {
-                local_player_entry: payload.local_player_entry.map(|e| LeaderboardEntry {
-                    rank: e.rank,
-                    score: e.score,
-                    formatted_score: e.formatted_score,
-                    context: e.context,
-                    date: e.date,
-                    player: e.player,
-                }),
-                entries: payload
-                    .entries
-                    .into_iter()
-                    .map(|e| LeaderboardEntry {
-                        rank: e.rank,
-                        score: e.score,
-                        formatted_score: e.formatted_score,
-                        context: e.context,
-                        date: e.date,
-                        player: e.player,
-                    })
-                    .collect(),
-                total_player_count: payload.total_player_count,
-            })
+    fn from_payload(payload: LeaderboardPayload) -> Self {
+        Self {
+            base_leaderboard_id: payload.base_leaderboard_id,
+            title: payload.title,
+            group_identifier: payload.group_identifier,
+            leaderboard_type: match payload.leaderboard_type.as_str() {
+                "recurring" => LeaderboardType::Recurring,
+                _ => LeaderboardType::Classic,
+            },
+            start_date: payload.start_date,
+            next_start_date: payload.next_start_date,
+            duration_seconds: payload.duration_seconds,
         }
     }
 }

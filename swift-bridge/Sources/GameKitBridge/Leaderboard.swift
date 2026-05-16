@@ -4,29 +4,12 @@ import GameKit
 struct GKLeaderboardPayload: Codable {
     let baseLeaderboardID: String
     let title: String?
+    let groupIdentifier: String?
     let leaderboardType: String
+    let startDate: String?
+    let nextStartDate: String?
+    let durationSeconds: Double?
 }
-
-struct GKLeaderboardEntryPayload: Codable {
-    let rank: Int
-    let score: Int
-    let formattedScore: String
-    let context: UInt
-    let date: String
-    let player: GKPlayerPayload
-}
-
-struct GKLoadEntriesPayload: Codable {
-    let localPlayerEntry: GKLeaderboardEntryPayload?
-    let entries: [GKLeaderboardEntryPayload]
-    let totalPlayerCount: Int
-}
-
-private let gkDateFormatter: ISO8601DateFormatter = {
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    return formatter
-}()
 
 func gkLeaderboardPayload(from leaderboard: GKLeaderboard) -> GKLeaderboardPayload {
     let leaderboardType: String
@@ -38,23 +21,28 @@ func gkLeaderboardPayload(from leaderboard: GKLeaderboard) -> GKLeaderboardPaylo
     @unknown default:
         leaderboardType = "classic"
     }
-    
+
     return GKLeaderboardPayload(
         baseLeaderboardID: leaderboard.baseLeaderboardID,
         title: leaderboard.title,
-        leaderboardType: leaderboardType
+        groupIdentifier: leaderboard.groupIdentifier,
+        leaderboardType: leaderboardType,
+        startDate: gkDateString(leaderboard.startDate),
+        nextStartDate: gkDateString(leaderboard.nextStartDate),
+        durationSeconds: leaderboard.type == .recurring ? leaderboard.duration : nil
     )
 }
 
-func gkEntryPayload(from entry: GKLeaderboard.Entry) -> GKLeaderboardEntryPayload {
-    GKLeaderboardEntryPayload(
-        rank: entry.rank,
-        score: entry.score,
-        formattedScore: entry.formattedScore,
-        context: UInt(entry.context),
-        date: gkDateFormatter.string(from: entry.date),
-        player: gkPlayerPayload(from: entry.player)
-    )
+func gkLoadLeaderboards(with ids: [String]?) async throws -> [GKLeaderboard] {
+    try await withCheckedThrowingContinuation { continuation in
+        GKLeaderboard.loadLeaderboards(IDs: ids) { leaderboards, error in
+            if let error {
+                continuation.resume(throwing: error)
+            } else {
+                continuation.resume(returning: leaderboards ?? [])
+            }
+        }
+    }
 }
 
 @_cdecl("gk_leaderboard_load_json")
@@ -63,26 +51,53 @@ public func gk_leaderboard_load_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    return gkBlockOnAsync(
+    gkBlockOnAsync(
         work: {
-            let ids = try gkDecodeJSON(idsJSON, as: [String].self)
-            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKLeaderboard], Error>) in
-                GKLeaderboard.loadLeaderboards(IDs: ids) { leaderboards, error in
-                    if let error = error {
+            let ids: [String]?
+            if let idsJSON {
+                ids = try gkDecodeJSON(idsJSON, as: [String].self)
+            } else {
+                ids = nil
+            }
+            return try await gkLoadLeaderboards(with: ids)
+        },
+        onSuccess: { (leaderboards: [GKLeaderboard]) in
+            outJSON?.pointee = gkCString((try? gkEncodeJSON(leaderboards.map(gkLeaderboardPayload(from:)))) ?? "[]")
+        },
+        onError: { error in
+            gkPopulateError(outError, with: error)
+        }
+    )
+}
+
+@_cdecl("gk_leaderboard_load_previous_occurrence_json")
+public func gk_leaderboard_load_previous_occurrence_json(
+    _ leaderboardID: UnsafePointer<CChar>?,
+    _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
+    _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) -> Int32 {
+    gkBlockOnAsync(
+        work: {
+            guard let leaderboardID else {
+                throw GKBridgeError.unknown("missing leaderboard identifier")
+            }
+            let identifier = String(cString: leaderboardID)
+            guard let leaderboard = try await gkLoadLeaderboards(with: [identifier]).first else {
+                throw GKBridgeError.notFound("leaderboard not found")
+            }
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GKLeaderboard?, Error>) in
+                leaderboard.loadPreviousOccurrence { occurrence, error in
+                    if let error {
                         continuation.resume(throwing: error)
-                    } else if let leaderboards = leaderboards {
-                        continuation.resume(returning: leaderboards)
                     } else {
-                        continuation.resume(throwing: GKBridgeError.unknown("loadLeaderboards returned nil"))
+                        continuation.resume(returning: occurrence)
                     }
                 }
             }
         },
-        onSuccess: { (leaderboards: [GKLeaderboard]) in
-            let payloads = leaderboards.map(gkLeaderboardPayload(from:))
-            if let json = try? gkEncodeJSON(payloads) {
-                outJSON?.pointee = gkCString(json)
-            }
+        onSuccess: { (leaderboard: GKLeaderboard?) in
+            let payload = leaderboard.map(gkLeaderboardPayload(from:))
+            outJSON?.pointee = gkCString((try? gkEncodeJSON(payload)) ?? "null")
         },
         onError: { error in
             gkPopulateError(outError, with: error)
@@ -97,17 +112,12 @@ public func gk_leaderboard_submit_score(
     _ idsJSON: UnsafePointer<CChar>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    return gkBlockOnAsync(
+    gkBlockOnAsync(
         work: {
             let ids = try gkDecodeJSON(idsJSON, as: [String].self)
-            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                GKLeaderboard.submitScore(
-                    Int(score),
-                    context: Int(context),
-                    player: GKLocalPlayer.local,
-                    leaderboardIDs: ids
-                ) { error in
-                    if let error = error {
+            return try await withCheckedThrowingContinuation { continuation in
+                GKLeaderboard.submitScore(Int(score), context: Int(context), player: GKLocalPlayer.local, leaderboardIDs: ids) { error in
+                    if let error {
                         continuation.resume(throwing: error)
                     } else {
                         continuation.resume(returning: ())
@@ -122,73 +132,33 @@ public func gk_leaderboard_submit_score(
     )
 }
 
-@_cdecl("gk_leaderboard_load_entries_json")
-public func gk_leaderboard_load_entries_json(
+@_cdecl("gk_leaderboard_submit_score_for_id")
+public func gk_leaderboard_submit_score_for_id(
+    _ score: Int64,
+    _ context: UInt64,
     _ leaderboardID: UnsafePointer<CChar>?,
-    _ playerScope: Int32,
-    _ timeScope: Int32,
-    _ rangeLocation: Int,
-    _ rangeLength: Int,
-    _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    return gkBlockOnAsync(
+    gkBlockOnAsync(
         work: {
-            guard let leaderboardID = leaderboardID else {
-                throw GKBridgeError.unknown("missing leaderboard ID")
+            guard let leaderboardID else {
+                throw GKBridgeError.unknown("missing leaderboard identifier")
             }
-            let leaderboardIDStr = String(cString: leaderboardID)
-            
-            let scope: GKLeaderboard.PlayerScope = playerScope == 1 ? .friendsOnly : .global
-            
-            let time: GKLeaderboard.TimeScope
-            switch timeScope {
-            case 0:
-                time = .today
-            case 1:
-                time = .week
-            default:
-                time = .allTime
+            let identifier = String(cString: leaderboardID)
+            guard let leaderboard = try await gkLoadLeaderboards(with: [identifier]).first else {
+                throw GKBridgeError.notFound("leaderboard not found")
             }
-            
-            let leaderboard: GKLeaderboard = try await withCheckedThrowingContinuation { continuation in
-                GKLeaderboard.loadLeaderboards(IDs: [leaderboardIDStr]) { leaderboards, error in
-                    if let error = error {
+            return try await withCheckedThrowingContinuation { continuation in
+                leaderboard.submitScore(Int(score), context: Int(context), player: GKLocalPlayer.local) { error in
+                    if let error {
                         continuation.resume(throwing: error)
-                    } else if let leaderboard = leaderboards?.first {
-                        continuation.resume(returning: leaderboard)
                     } else {
-                        continuation.resume(throwing: GKBridgeError.notFound("leaderboard not found"))
+                        continuation.resume(returning: ())
                     }
                 }
             }
-            
-            let result: (localPlayerEntry: GKLeaderboard.Entry?, entries: [GKLeaderboard.Entry], totalPlayerCount: Int) = try await withCheckedThrowingContinuation { continuation in
-                leaderboard.loadEntries(
-                    for: scope,
-                    timeScope: time,
-                    range: NSRange(location: rangeLocation, length: rangeLength)
-                ) { localEntry, entries, totalPlayers, error in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume(returning: (localEntry, entries ?? [], totalPlayers))
-                    }
-                }
-            }
-            
-            return result
         },
-        onSuccess: { result in
-            let payload = GKLoadEntriesPayload(
-                localPlayerEntry: result.localPlayerEntry.map(gkEntryPayload(from:)),
-                entries: result.entries.map(gkEntryPayload(from:)),
-                totalPlayerCount: result.totalPlayerCount
-            )
-            if let json = try? gkEncodeJSON(payload) {
-                outJSON?.pointee = gkCString(json)
-            }
-        },
+        onSuccess: { (_: Void) in },
         onError: { error in
             gkPopulateError(outError, with: error)
         }

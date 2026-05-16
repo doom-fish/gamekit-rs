@@ -6,41 +6,180 @@ use serde::Deserialize;
 use crate::{ffi, private, GameKitError, Player};
 
 /// Represents the local authenticated player.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone)]
-#[allow(clippy::unsafe_derive_deserialize)]
 pub struct LocalPlayer {
     pub is_authenticated: bool,
     pub is_underage: bool,
     pub is_multiplayer_gaming_restricted: bool,
+    pub is_personalized_communication_restricted: bool,
+    pub is_presenting_friend_request_view_controller: bool,
     pub player: Player,
 }
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct LocalPlayerPayload {
     is_authenticated: bool,
     is_underage: bool,
     is_multiplayer_gaming_restricted: bool,
+    is_personalized_communication_restricted: bool,
+    is_presenting_friend_request_view_controller: bool,
     player: Player,
+}
+
+/// Result of identity verification signature generation.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct IdentityVerificationSignature {
+    pub public_key_url: String,
+    pub signature_base64: String,
+    pub salt_base64: String,
+    pub timestamp: u64,
+}
+
+/// Authorization state for friends list access.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FriendsAuthorizationStatus {
+    NotDetermined,
+    Restricted,
+    Denied,
+    Authorized,
 }
 
 impl LocalPlayer {
     /// Returns a snapshot of the local player's authentication state.
     pub fn local() -> Result<Self, GameKitError> {
-        unsafe {
+        let payload: LocalPlayerPayload = unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_local_player_json(&mut out_json, &mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
-            let payload: LocalPlayerPayload = private::parse_json_ptr(out_json, "LocalPlayer")?;
-            Ok(Self {
-                is_authenticated: payload.is_authenticated,
-                is_underage: payload.is_underage,
-                is_multiplayer_gaming_restricted: payload.is_multiplayer_gaming_restricted,
-                player: payload.player,
+            private::parse_json_ptr(out_json, "local player")?
+        };
+
+        Ok(Self {
+            is_authenticated: payload.is_authenticated,
+            is_underage: payload.is_underage,
+            is_multiplayer_gaming_restricted: payload.is_multiplayer_gaming_restricted,
+            is_personalized_communication_restricted: payload
+                .is_personalized_communication_restricted,
+            is_presenting_friend_request_view_controller: payload
+                .is_presenting_friend_request_view_controller,
+            player: payload.player,
+        })
+    }
+
+    /// Loads the local player's recent players.
+    pub fn load_recent_players() -> Result<Vec<Player>, GameKitError> {
+        unsafe {
+            let mut out_json: *mut c_char = std::ptr::null_mut();
+            let mut out_error: *mut c_char = std::ptr::null_mut();
+            let status = ffi::gk_local_player_load_recent_players_json(&mut out_json, &mut out_error);
+            if status != ffi::status::OK {
+                return Err(private::error_from_status(status, out_error));
+            }
+            private::parse_json_ptr(out_json, "recent players")
+        }
+    }
+
+    /// Loads the local player's challengeable friends.
+    pub fn load_challengable_friends() -> Result<Vec<Player>, GameKitError> {
+        unsafe {
+            let mut out_json: *mut c_char = std::ptr::null_mut();
+            let mut out_error: *mut c_char = std::ptr::null_mut();
+            let status =
+                ffi::gk_local_player_load_challengable_friends_json(&mut out_json, &mut out_error);
+            if status != ffi::status::OK {
+                return Err(private::error_from_status(status, out_error));
+            }
+            private::parse_json_ptr(out_json, "challengeable friends")
+        }
+    }
+
+    /// Fetches the identity verification signature payload.
+    pub fn fetch_identity_verification_signature(
+    ) -> Result<IdentityVerificationSignature, GameKitError> {
+        unsafe {
+            let mut out_json: *mut c_char = std::ptr::null_mut();
+            let mut out_error: *mut c_char = std::ptr::null_mut();
+            let status = ffi::gk_local_player_fetch_identity_verification_signature_json(
+                &mut out_json,
+                &mut out_error,
+            );
+            if status != ffi::status::OK {
+                return Err(private::error_from_status(status, out_error));
+            }
+            private::parse_json_ptr(out_json, "identity verification signature")
+        }
+    }
+
+    /// Loads the current friend-list authorization status.
+    pub fn load_friends_authorization_status(
+    ) -> Result<FriendsAuthorizationStatus, GameKitError> {
+        unsafe {
+            let mut out_status = 0_i32;
+            let mut out_error: *mut c_char = std::ptr::null_mut();
+            let status = ffi::gk_local_player_load_friends_authorization_status(
+                &mut out_status,
+                &mut out_error,
+            );
+            if status != ffi::status::OK {
+                return Err(private::error_from_status(status, out_error));
+            }
+            Ok(match out_status {
+                1 => FriendsAuthorizationStatus::Restricted,
+                2 => FriendsAuthorizationStatus::Denied,
+                3 => FriendsAuthorizationStatus::Authorized,
+                _ => FriendsAuthorizationStatus::NotDetermined,
             })
+        }
+    }
+
+    /// Loads the local player's friends.
+    pub fn load_friends() -> Result<Vec<Player>, GameKitError> {
+        unsafe {
+            let mut out_json: *mut c_char = std::ptr::null_mut();
+            let mut out_error: *mut c_char = std::ptr::null_mut();
+            let status = ffi::gk_local_player_load_friends_json(&mut out_json, &mut out_error);
+            if status != ffi::status::OK {
+                return Err(private::error_from_status(status, out_error));
+            }
+            private::parse_json_ptr(out_json, "friends")
+        }
+    }
+
+    /// Loads friend players by scoped identifiers.
+    pub fn load_friends_identified_by(ids: &[&str]) -> Result<Vec<Player>, GameKitError> {
+        let ids_json = private::json_cstring(ids, "friend identifiers")?;
+
+        unsafe {
+            let mut out_json: *mut c_char = std::ptr::null_mut();
+            let mut out_error: *mut c_char = std::ptr::null_mut();
+            let status = ffi::gk_local_player_load_friends_by_identifiers_json(
+                ids_json.as_ptr(),
+                &mut out_json,
+                &mut out_error,
+            );
+            if status != ffi::status::OK {
+                return Err(private::error_from_status(status, out_error));
+            }
+            private::parse_json_ptr(out_json, "friends by identifiers")
+        }
+    }
+
+    /// Opens the macOS friend-request creator using the current app window, when available.
+    pub fn present_friend_request_creator() -> Result<(), GameKitError> {
+        unsafe {
+            let mut out_error: *mut c_char = std::ptr::null_mut();
+            let status = ffi::gk_local_player_present_friend_request(&mut out_error);
+            if status != ffi::status::OK {
+                return Err(private::error_from_status(status, out_error));
+            }
+            Ok(())
         }
     }
 }

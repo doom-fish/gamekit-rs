@@ -11,6 +11,7 @@ pub enum GameKitError {
     TimedOut(String),
     NotAuthenticated,
     NotFound(String),
+    Unavailable(String),
     Framework(GameKitFrameworkError),
     Unknown(String),
 }
@@ -18,9 +19,10 @@ pub enum GameKitError {
 impl fmt::Display for GameKitError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::TimedOut(message) | Self::Unknown(message) | Self::NotFound(message) => {
-                formatter.write_str(message)
-            }
+            Self::TimedOut(message)
+            | Self::NotFound(message)
+            | Self::Unavailable(message)
+            | Self::Unknown(message) => formatter.write_str(message),
             Self::NotAuthenticated => formatter.write_str("not authenticated"),
             Self::Framework(error) => write!(
                 formatter,
@@ -57,8 +59,11 @@ pub(crate) unsafe fn from_swift(status: i32, err_msg: *mut c_char) -> GameKitErr
             message.unwrap_or_else(|| "GameKit operation timed out".to_owned()),
         ),
         ffi::status::NOT_AUTHENTICATED => GameKitError::NotAuthenticated,
-        ffi::status::NOT_FOUND => GameKitError::NotFound(
-            message.unwrap_or_else(|| "GameKit resource not found".to_owned()),
+        ffi::status::NOT_FOUND => {
+            GameKitError::NotFound(message.unwrap_or_else(|| "GameKit resource not found".to_owned()))
+        }
+        ffi::status::UNAVAILABLE => GameKitError::Unavailable(
+            message.unwrap_or_else(|| "GameKit API is unavailable on this SDK or OS".to_owned()),
         ),
         ffi::status::FRAMEWORK_ERROR => parse_framework_error(message),
         _ => GameKitError::Unknown(
