@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::mem::size_of;
 
 fn sample_player() -> gamekit::Player {
@@ -51,7 +52,10 @@ fn leaderboard_area_constructs_snapshot() {
     };
 
     assert_eq!(leaderboard.base_leaderboard_id, "com.example.high-score");
-    assert_eq!(leaderboard.leaderboard_type, gamekit::LeaderboardType::Recurring);
+    assert_eq!(
+        leaderboard.leaderboard_type,
+        gamekit::LeaderboardType::Recurring
+    );
 }
 
 #[test]
@@ -120,7 +124,10 @@ fn match_area_constructs_event() {
         }
     }
 
-    assert_eq!(gamekit::SendDataMode::Reliable, gamekit::SendDataMode::Reliable);
+    assert_eq!(
+        gamekit::SendDataMode::Reliable,
+        gamekit::SendDataMode::Reliable
+    );
 }
 
 #[test]
@@ -240,12 +247,8 @@ fn challenge_definition_area_constructs_models() {
 #[test]
 fn score_area_builders_round_trip_json() {
     let local = gamekit::Score::new_local("com.example.high-score", 500, 42);
-    let targeted = gamekit::Score::for_player_game_id(
-        "com.example.high-score",
-        1_000,
-        7,
-        "G:player-1",
-    );
+    let targeted =
+        gamekit::Score::for_player_game_id("com.example.high-score", 1_000, 7, "G:player-1");
     let json = serde_json::to_string(&targeted).expect("serialize score");
     let decoded: gamekit::Score = serde_json::from_str(&json).expect("deserialize score");
 
@@ -264,4 +267,131 @@ fn save_area_round_trips_json() {
     let decoded: gamekit::SavedGame = serde_json::from_str(&json).expect("deserialize saved game");
 
     assert_eq!(decoded, saved_game);
+}
+
+#[test]
+fn game_activity_area_constructs_models() {
+    let definition = gamekit::GameActivityDefinition {
+        identifier: "raid-night".to_owned(),
+        group_identifier: Some("weekly".to_owned()),
+        title: "Raid Night".to_owned(),
+        details: Some("Weekly co-op raid".to_owned()),
+        default_properties: BTreeMap::from([("difficulty".to_owned(), "heroic".to_owned())]),
+        fallback_url: Some("https://example.com/raid".to_owned()),
+        supports_party_code: true,
+        max_players: Some(6),
+        min_players: Some(2),
+        supports_unlimited_players: false,
+        play_style: gamekit::GameActivityPlayStyle::Synchronous,
+        release_state: "released".to_owned(),
+    };
+    let achievement = gamekit::Achievement {
+        identifier: "raid-clear".to_owned(),
+        percent_complete: 50.0,
+        is_completed: false,
+        last_reported_date: Some("2026-01-01T00:10:00Z".to_owned()),
+        shows_completion_banner: false,
+        player: Some(sample_player()),
+    };
+    let snapshot = gamekit::GameActivitySnapshot {
+        identifier: "activity-1".to_owned(),
+        activity_definition: definition.clone(),
+        properties: BTreeMap::from([("map".to_owned(), "volcano".to_owned())]),
+        state: gamekit::GameActivityState::Active,
+        party_code: Some("ABCD-EFGH".to_owned()),
+        party_url: Some("https://example.com/join/ABCD-EFGH".to_owned()),
+        creation_date: "2026-01-01T00:00:00Z".to_owned(),
+        start_date: Some("2026-01-01T00:01:00Z".to_owned()),
+        last_resume_date: Some("2026-01-01T00:05:00Z".to_owned()),
+        end_date: None,
+        duration_seconds: 240.0,
+        achievements: vec![achievement],
+        leaderboard_scores: vec![gamekit::Score::new_local("com.example.raid", 7_500, 3)],
+    };
+
+    assert_eq!(
+        definition.play_style,
+        gamekit::GameActivityPlayStyle::Synchronous
+    );
+    assert_eq!(snapshot.state, gamekit::GameActivityState::Active);
+    assert_eq!(snapshot.leaderboard_scores.len(), 1);
+}
+
+#[test]
+fn local_player_listener_area_constructs_events() {
+    let saved_game = gamekit::SavedGame {
+        name: Some("autosave".to_owned()),
+        device_name: Some("MacBook Pro".to_owned()),
+        modification_date: Some("2026-01-01T00:00:00Z".to_owned()),
+    };
+    let definition = gamekit::GameActivityDefinition {
+        identifier: "raid-night".to_owned(),
+        group_identifier: None,
+        title: "Raid Night".to_owned(),
+        details: None,
+        default_properties: BTreeMap::new(),
+        fallback_url: None,
+        supports_party_code: false,
+        max_players: None,
+        min_players: Some(2),
+        supports_unlimited_players: false,
+        play_style: gamekit::GameActivityPlayStyle::Unspecified,
+        release_state: "released".to_owned(),
+    };
+    let activity = gamekit::GameActivitySnapshot {
+        identifier: "activity-1".to_owned(),
+        activity_definition: definition,
+        properties: BTreeMap::new(),
+        state: gamekit::GameActivityState::Initialized,
+        party_code: None,
+        party_url: None,
+        creation_date: "2026-01-01T00:00:00Z".to_owned(),
+        start_date: None,
+        last_resume_date: None,
+        end_date: None,
+        duration_seconds: 0.0,
+        achievements: vec![],
+        leaderboard_scores: vec![],
+    };
+    let event = gamekit::LocalPlayerEvent::WantsToPlayGameActivity {
+        player: sample_player(),
+        activity,
+    };
+    let saved_event = gamekit::LocalPlayerEvent::ModifiedSavedGame {
+        player: sample_player(),
+        saved_game,
+    };
+
+    match event {
+        gamekit::LocalPlayerEvent::WantsToPlayGameActivity { player, activity } => {
+            assert_eq!(player.alias, "doomfish");
+            assert_eq!(activity.state, gamekit::GameActivityState::Initialized);
+        }
+        _ => panic!("unexpected local-player event variant"),
+    }
+
+    match saved_event {
+        gamekit::LocalPlayerEvent::ModifiedSavedGame { saved_game, .. } => {
+            assert_eq!(saved_game.name.as_deref(), Some("autosave"));
+        }
+        _ => panic!("unexpected saved-game event variant"),
+    }
+}
+
+#[test]
+fn matchmaking_ui_area_references_types() {
+    assert_eq!(size_of::<gamekit::DialogController>(), 0);
+    assert_eq!(size_of::<gamekit::Invite>(), size_of::<usize>());
+    assert_eq!(
+        size_of::<gamekit::MatchmakerViewController>(),
+        size_of::<usize>()
+    );
+    assert_eq!(
+        size_of::<gamekit::TurnBasedMatchmakerViewController>(),
+        size_of::<usize>()
+    );
+    assert_eq!(
+        gamekit::MatchmakingMode::InviteOnly,
+        gamekit::MatchmakingMode::InviteOnly
+    );
 }

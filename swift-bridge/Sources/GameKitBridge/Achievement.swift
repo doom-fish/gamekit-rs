@@ -28,7 +28,7 @@ struct GKAchievementDescriptionPayload: Codable {
     let isReplayable: Bool
 }
 
-private func gkAchievementPayload(from achievement: GKAchievement) -> GKAchievementPayload {
+func gkAchievementPayload(from achievement: GKAchievement) -> GKAchievementPayload {
     GKAchievementPayload(
         identifier: achievement.identifier ?? "",
         percentComplete: achievement.percentComplete,
@@ -39,7 +39,7 @@ private func gkAchievementPayload(from achievement: GKAchievement) -> GKAchievem
     )
 }
 
-private func gkAchievementDescriptionPayload(from description: GKAchievementDescription) -> GKAchievementDescriptionPayload {
+func gkAchievementDescriptionPayload(from description: GKAchievementDescription) -> GKAchievementDescriptionPayload {
     GKAchievementDescriptionPayload(
         identifier: description.identifier,
         groupIdentifier: description.groupIdentifier,

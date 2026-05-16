@@ -130,7 +130,7 @@ pub struct TurnBasedMatch {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct TurnBasedMatchRequestPayload<'a> {
+pub(crate) struct TurnBasedMatchRequestPayload<'a> {
     min_players: u32,
     max_players: u32,
     player_group: u32,
@@ -140,7 +140,7 @@ struct TurnBasedMatchRequestPayload<'a> {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct TurnBasedParticipantPayload {
+pub(crate) struct TurnBasedParticipantPayload {
     index: usize,
     player: Option<Player>,
     last_turn_date: Option<String>,
@@ -151,7 +151,7 @@ struct TurnBasedParticipantPayload {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct TurnBasedExchangeReplyPayload {
+pub(crate) struct TurnBasedExchangeReplyPayload {
     recipient_index: Option<usize>,
     message: Option<String>,
     data_len: usize,
@@ -160,7 +160,7 @@ struct TurnBasedExchangeReplyPayload {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct TurnBasedExchangePayload {
+pub(crate) struct TurnBasedExchangePayload {
     index: usize,
     exchange_id: Option<String>,
     sender_index: Option<usize>,
@@ -176,7 +176,7 @@ struct TurnBasedExchangePayload {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct TurnBasedMatchPayload {
+pub(crate) struct TurnBasedMatchPayload {
     match_id: String,
     creation_date: Option<String>,
     participants: Vec<TurnBasedParticipantPayload>,
@@ -273,11 +273,8 @@ impl TurnBasedMatch {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_turn_based_rematch_json(
-                match_id.as_ptr(),
-                &mut out_json,
-                &mut out_error,
-            );
+            let status =
+                ffi::gk_turn_based_rematch_json(match_id.as_ptr(), &mut out_json, &mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -351,7 +348,8 @@ impl TurnBasedMatch {
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
-            let payload: BinaryPayload = private::parse_json_ptr(out_json, "turn-based match data")?;
+            let payload: BinaryPayload =
+                private::parse_json_ptr(out_json, "turn-based match data")?;
             private::decode_base64(&payload.data_base64, "turn-based match")
         }
     }
@@ -471,13 +469,19 @@ impl TurnBasedMatch {
                 identifier: &achievement.identifier,
                 percent_complete: achievement.percent_complete,
                 shows_completion_banner: achievement.shows_completion_banner,
-                player_game_id: achievement.player.as_ref().map(|player| player.game_player_id.as_str()),
+                player_game_id: achievement
+                    .player
+                    .as_ref()
+                    .map(|player| player.game_player_id.as_str()),
             })
             .collect();
         let achievements_json = if achievement_payloads.is_empty() {
             None
         } else {
-            Some(private::json_cstring(&achievement_payloads, "achievements")?)
+            Some(private::json_cstring(
+                &achievement_payloads,
+                "achievements",
+            )?)
         };
 
         unsafe {
@@ -486,7 +490,9 @@ impl TurnBasedMatch {
                 match_id.as_ptr(),
                 data.as_ptr(),
                 data.len(),
-                scores_json.as_ref().map_or(std::ptr::null(), |json| json.as_ptr()),
+                scores_json
+                    .as_ref()
+                    .map_or(std::ptr::null(), |json| json.as_ptr()),
                 achievements_json
                     .as_ref()
                     .map_or(std::ptr::null(), |json| json.as_ptr()),
@@ -506,7 +512,8 @@ impl TurnBasedMatch {
         resolved_exchange_indices: &[usize],
     ) -> Result<(), GameKitError> {
         let match_id = private::cstring_from_str(&self.match_id, "match identifier")?;
-        let resolved_indices = private::json_cstring(resolved_exchange_indices, "exchange indices")?;
+        let resolved_indices =
+            private::json_cstring(resolved_exchange_indices, "exchange indices")?;
 
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
@@ -534,7 +541,8 @@ impl TurnBasedMatch {
         timeout_seconds: f64,
     ) -> Result<TurnBasedExchange, GameKitError> {
         let match_id = private::cstring_from_str(&self.match_id, "match identifier")?;
-        let participant_indices = private::json_cstring(participant_indices, "participant indices")?;
+        let participant_indices =
+            private::json_cstring(participant_indices, "participant indices")?;
         let message_key = private::cstring_from_str(message_key, "message key")?;
         let arguments = private::json_cstring(arguments, "message arguments")?;
 
@@ -626,7 +634,8 @@ impl TurnBasedMatch {
         arguments: &[&str],
     ) -> Result<(), GameKitError> {
         let match_id = private::cstring_from_str(&self.match_id, "match identifier")?;
-        let participant_indices = private::json_cstring(participant_indices, "participant indices")?;
+        let participant_indices =
+            private::json_cstring(participant_indices, "participant indices")?;
         let message_key = private::cstring_from_str(message_key, "message key")?;
         let arguments = private::json_cstring(arguments, "message arguments")?;
 
@@ -646,7 +655,7 @@ impl TurnBasedMatch {
         }
     }
 
-    fn from_payload(payload: TurnBasedMatchPayload) -> Self {
+    pub(crate) fn from_payload(payload: TurnBasedMatchPayload) -> Self {
         Self {
             match_id: payload.match_id,
             creation_date: payload.creation_date,
@@ -675,7 +684,7 @@ impl TurnBasedMatch {
 }
 
 impl TurnBasedParticipant {
-    fn from_payload(payload: TurnBasedParticipantPayload) -> Self {
+    pub(crate) fn from_payload(payload: TurnBasedParticipantPayload) -> Self {
         Self {
             index: payload.index,
             player: payload.player,
@@ -688,7 +697,7 @@ impl TurnBasedParticipant {
 }
 
 impl TurnBasedExchange {
-    fn from_payload(payload: TurnBasedExchangePayload) -> Self {
+    pub(crate) fn from_payload(payload: TurnBasedExchangePayload) -> Self {
         Self {
             index: payload.index,
             exchange_id: payload.exchange_id,
@@ -710,7 +719,7 @@ impl TurnBasedExchange {
 }
 
 impl TurnBasedExchangeReply {
-    fn from_payload(payload: TurnBasedExchangeReplyPayload) -> Self {
+    pub(crate) fn from_payload(payload: TurnBasedExchangeReplyPayload) -> Self {
         Self {
             recipient_index: payload.recipient_index,
             message: payload.message,
@@ -791,7 +800,7 @@ impl TurnBasedExchangeStatus {
 }
 
 impl<'a> TurnBasedMatchRequestPayload<'a> {
-    fn from_request(request: &'a TurnBasedMatchRequest) -> Self {
+    pub(crate) fn from_request(request: &'a TurnBasedMatchRequest) -> Self {
         Self {
             min_players: request.min_players,
             max_players: request.max_players,

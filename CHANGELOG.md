@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.1] - 2026-05-16
+
+### Added
+- `GameActivity` bindings covering definition loading, activity snapshots, lifecycle control, matchmaking handoff, and deep-link metadata/image access on macOS 26
+- `LocalPlayer::register_listener` with `LocalPlayerListener`/`LocalPlayerEvent` support for invite, turn-based, saved-game, and game-activity callbacks
+- AppKit Game Center UI wrappers for `DialogController`, `Invite`, `MatchmakerViewController`, `TurnBasedMatchmakerViewController`, and their delegate/event types
+- `14_game_activity` example plus smoke-test coverage for the new game-activity, listener, and AppKit UI surface
+
+### Changed
+- Updated the audit table to mark the Game Activity, local-player listener, invite, dialog-controller, and matchmaking UI gaps as verified
+- Bumped the crate version to `0.2.1`
+
 ## [0.2.0] - 2026-05-16
 
 ### Added

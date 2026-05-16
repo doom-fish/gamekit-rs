@@ -40,7 +40,7 @@ impl Default for MatchRequest {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct MatchRequestPayload<'a> {
+pub(crate) struct MatchRequestPayload<'a> {
     min_players: u32,
     max_players: u32,
     player_group: u32,
@@ -176,7 +176,7 @@ impl Matchmaker {
 }
 
 impl<'a> MatchRequestPayload<'a> {
-    fn from_request(request: &'a MatchRequest) -> Self {
+    pub(crate) fn from_request(request: &'a MatchRequest) -> Self {
         Self {
             min_players: request.min_players,
             max_players: request.max_players,

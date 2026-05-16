@@ -55,7 +55,7 @@ struct GKTurnBasedMatchPayload: Codable {
     let exchangeMaxInitiatedExchangesPerPlayer: Int
 }
 
-private func gkMakeTurnBasedRequest(from payload: GKTurnBasedMatchRequestPayload) async throws -> GKMatchRequest {
+func gkMakeTurnBasedRequest(from payload: GKTurnBasedMatchRequestPayload) async throws -> GKMatchRequest {
     let request = GKMatchRequest()
     request.minPlayers = payload.minPlayers
     request.maxPlayers = payload.maxPlayers
@@ -88,7 +88,7 @@ private func gkParticipantIndex(_ participant: GKTurnBasedParticipant?, in parti
     return participants.firstIndex { $0 === participant }
 }
 
-private func gkTurnBasedParticipantPayload(
+func gkTurnBasedParticipantPayload(
     from participant: GKTurnBasedParticipant,
     index: Int
 ) -> GKTurnBasedParticipantPayload {
@@ -102,7 +102,7 @@ private func gkTurnBasedParticipantPayload(
     )
 }
 
-private func gkTurnBasedExchangeReplyPayload(
+func gkTurnBasedExchangeReplyPayload(
     from reply: GKTurnBasedExchangeReply,
     participants: [GKTurnBasedParticipant]
 ) -> GKTurnBasedExchangeReplyPayload {
@@ -114,7 +114,7 @@ private func gkTurnBasedExchangeReplyPayload(
     )
 }
 
-private func gkTurnBasedExchangePayload(
+func gkTurnBasedExchangePayload(
     from exchange: GKTurnBasedExchange,
     index: Int,
     participants: [GKTurnBasedParticipant]
@@ -134,7 +134,7 @@ private func gkTurnBasedExchangePayload(
     )
 }
 
-private func gkTurnBasedMatchPayload(from match: GKTurnBasedMatch) throws -> GKTurnBasedMatchPayload {
+func gkTurnBasedMatchPayload(from match: GKTurnBasedMatch) throws -> GKTurnBasedMatchPayload {
     let matchID = match.matchID
     let participants = match.participants
     let exchanges = match.exchanges ?? []

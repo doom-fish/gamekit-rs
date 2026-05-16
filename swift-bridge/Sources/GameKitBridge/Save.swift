@@ -7,7 +7,7 @@ struct GKSavedGamePayload: Codable {
     let modificationDate: String?
 }
 
-private func gkSavedGamePayload(from savedGame: GKSavedGame) -> GKSavedGamePayload {
+func gkSavedGamePayload(from savedGame: GKSavedGame) -> GKSavedGamePayload {
     GKSavedGamePayload(
         name: savedGame.name,
         deviceName: savedGame.deviceName,

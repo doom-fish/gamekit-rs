@@ -35,7 +35,7 @@ impl fmt::Display for GameKitError {
 
 impl std::error::Error for GameKitError {}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct GameKitFrameworkError {
     pub domain: String,
     pub code: i64,
@@ -59,15 +59,16 @@ pub(crate) unsafe fn from_swift(status: i32, err_msg: *mut c_char) -> GameKitErr
             message.unwrap_or_else(|| "GameKit operation timed out".to_owned()),
         ),
         ffi::status::NOT_AUTHENTICATED => GameKitError::NotAuthenticated,
-        ffi::status::NOT_FOUND => {
-            GameKitError::NotFound(message.unwrap_or_else(|| "GameKit resource not found".to_owned()))
-        }
+        ffi::status::NOT_FOUND => GameKitError::NotFound(
+            message.unwrap_or_else(|| "GameKit resource not found".to_owned()),
+        ),
         ffi::status::UNAVAILABLE => GameKitError::Unavailable(
             message.unwrap_or_else(|| "GameKit API is unavailable on this SDK or OS".to_owned()),
         ),
         ffi::status::FRAMEWORK_ERROR => parse_framework_error(message),
         _ => GameKitError::Unknown(
-            message.unwrap_or_else(|| format!("GameKit bridge returned unexpected status {status}")),
+            message
+                .unwrap_or_else(|| format!("GameKit bridge returned unexpected status {status}")),
         ),
     }
 }

@@ -34,12 +34,21 @@ pub struct GameKitFrameworkErrorData {
 /// Events received from a match delegate.
 #[derive(Debug, Clone)]
 pub enum MatchEvent {
-    ReceivedData { player: Player, data: Vec<u8> },
-    ConnectionStateChanged { player: Player, state: ConnectionState },
-    Failed { error: Option<GameKitFrameworkErrorData> },
+    ReceivedData {
+        player: Player,
+        data: Vec<u8>,
+    },
+    ConnectionStateChanged {
+        player: Player,
+        state: ConnectionState,
+    },
+    Failed {
+        error: Option<GameKitFrameworkErrorData>,
+    },
 }
 
 /// Represents a Game Center real-time match.
+#[derive(Debug)]
 pub struct Match {
     pub(crate) ptr: *mut c_void,
 }
@@ -69,7 +78,8 @@ impl Match {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_match_connected_players_json(self.ptr, &mut out_json, &mut out_error);
+            let status =
+                ffi::gk_match_connected_players_json(self.ptr, &mut out_json, &mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -132,8 +142,11 @@ impl Match {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status =
-                ffi::gk_match_choose_best_hosting_player_json(self.ptr, &mut out_json, &mut out_error);
+            let status = ffi::gk_match_choose_best_hosting_player_json(
+                self.ptr,
+                &mut out_json,
+                &mut out_error,
+            );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }

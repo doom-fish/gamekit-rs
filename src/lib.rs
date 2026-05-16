@@ -4,27 +4,30 @@
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
     clippy::module_name_repetitions,
-    clippy::must_use_candidate,
+    clippy::must_use_candidate
 )]
 
 pub mod access_point;
 pub mod achievement;
 pub mod challenge_definition;
 pub mod error;
+mod ffi;
+pub mod game_activity;
 pub mod gk_match;
 pub mod leaderboard;
 pub mod leaderboard_entry;
 pub mod local_player;
+pub mod local_player_listener;
+pub mod r#match;
 pub mod matchmaker;
+pub mod matchmaker_ui;
 pub mod notification;
 pub mod player;
-pub mod r#match;
+mod private;
 pub mod real_time;
 pub mod save;
 pub mod score;
 pub mod turn_based;
-mod ffi;
-mod private;
 
 pub use access_point::{
     AccessPoint, AccessPointFrame, AccessPointLocation, AccessPointSnapshot, AccessPointState,
@@ -32,11 +35,21 @@ pub use access_point::{
 pub use achievement::{Achievement, AchievementDescription};
 pub use challenge_definition::{ChallengeDefinition, ChallengeDurationOption};
 pub use error::{GameKitError, GameKitFrameworkError};
+pub use game_activity::{
+    GameActivity, GameActivityDefinition, GameActivityPlayStyle, GameActivitySnapshot,
+    GameActivityState,
+};
 pub use leaderboard::{Leaderboard, LeaderboardType, PlayerScope, TimeScope};
 pub use leaderboard_entry::{LeaderboardEntry, LoadEntriesResult};
 pub use local_player::{
     AuthEvent, AuthEventError, AuthObserver, FriendsAuthorizationStatus,
     IdentityVerificationSignature, LocalPlayer,
+};
+pub use local_player_listener::{LocalPlayerEvent, LocalPlayerListener};
+pub use matchmaker_ui::{
+    DialogController, Invite, MatchmakerViewController, MatchmakerViewControllerDelegate,
+    MatchmakerViewControllerEvent, MatchmakingMode, TurnBasedMatchmakerViewController,
+    TurnBasedMatchmakerViewControllerDelegate, TurnBasedMatchmakerViewControllerEvent,
 };
 pub use notification::NotificationBanner;
 pub use player::Player;
@@ -53,17 +66,26 @@ pub use turn_based::{
 /// Common imports.
 pub mod prelude {
     pub use crate::access_point::{
-        AccessPoint, AccessPointFrame, AccessPointLocation, AccessPointSnapshot,
-        AccessPointState,
+        AccessPoint, AccessPointFrame, AccessPointLocation, AccessPointSnapshot, AccessPointState,
     };
     pub use crate::achievement::{Achievement, AchievementDescription};
     pub use crate::challenge_definition::{ChallengeDefinition, ChallengeDurationOption};
     pub use crate::error::{GameKitError, GameKitFrameworkError};
+    pub use crate::game_activity::{
+        GameActivity, GameActivityDefinition, GameActivityPlayStyle, GameActivitySnapshot,
+        GameActivityState,
+    };
     pub use crate::leaderboard::{Leaderboard, LeaderboardType, PlayerScope, TimeScope};
     pub use crate::leaderboard_entry::{LeaderboardEntry, LoadEntriesResult};
     pub use crate::local_player::{
         AuthEvent, AuthEventError, AuthObserver, FriendsAuthorizationStatus,
         IdentityVerificationSignature, LocalPlayer,
+    };
+    pub use crate::local_player_listener::{LocalPlayerEvent, LocalPlayerListener};
+    pub use crate::matchmaker_ui::{
+        DialogController, Invite, MatchmakerViewController, MatchmakerViewControllerDelegate,
+        MatchmakerViewControllerEvent, MatchmakingMode, TurnBasedMatchmakerViewController,
+        TurnBasedMatchmakerViewControllerDelegate, TurnBasedMatchmakerViewControllerEvent,
     };
     pub use crate::notification::NotificationBanner;
     pub use crate::player::Player;
@@ -73,7 +95,7 @@ pub mod prelude {
     pub use crate::score::Score;
     pub use crate::turn_based::{
         TurnBasedExchange, TurnBasedExchangeReply, TurnBasedExchangeStatus, TurnBasedMatch,
-        TurnBasedMatchOutcome, TurnBasedMatchRequest, TurnBasedMatchStatus,
-        TurnBasedParticipant, TurnBasedParticipantStatus,
+        TurnBasedMatchOutcome, TurnBasedMatchRequest, TurnBasedMatchStatus, TurnBasedParticipant,
+        TurnBasedParticipantStatus,
     };
 }

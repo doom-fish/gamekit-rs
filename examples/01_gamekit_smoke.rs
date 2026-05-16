@@ -7,7 +7,9 @@ use gamekit::LocalPlayer;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     if env::var_os("GAMEKIT_RS_RUN_LIVE").is_none() {
-        println!("Set GAMEKIT_RS_RUN_LIVE=1 to run the bundled LocalPlayer smoke test.");
+        println!(
+            "Set GAMEKIT_RS_RUN_LIVE=1 to run the bundled LocalPlayer smoke test; LocalPlayer::register_listener(...) now covers invite, turn-based, saved-game, and game-activity callbacks."
+        );
         return Ok(());
     }
 
@@ -46,10 +48,9 @@ fn relaunch_inside_app_bundle() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn executable_name(path: &Path) -> String {
-    path.file_name().and_then(|value| value.to_str()).map_or_else(
-        || "01_gamekit_smoke".to_owned(),
-        ToOwned::to_owned,
-    )
+    path.file_name()
+        .and_then(|value| value.to_str())
+        .map_or_else(|| "01_gamekit_smoke".to_owned(), ToOwned::to_owned)
 }
 
 fn info_plist() -> String {

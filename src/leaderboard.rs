@@ -40,7 +40,7 @@ pub struct Leaderboard {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct LeaderboardPayload {
+pub(crate) struct LeaderboardPayload {
     base_leaderboard_id: String,
     title: Option<String>,
     group_identifier: Option<String>,
@@ -63,7 +63,9 @@ impl Leaderboard {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_leaderboard_load_json(
-                ids_json.as_ref().map_or(std::ptr::null(), |json| json.as_ptr()),
+                ids_json
+                    .as_ref()
+                    .map_or(std::ptr::null(), |json| json.as_ptr()),
                 &mut out_json,
                 &mut out_error,
             );
@@ -115,12 +117,8 @@ impl Leaderboard {
 
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_leaderboard_submit_score(
-                score,
-                context,
-                ids_json.as_ptr(),
-                &mut out_error,
-            );
+            let status =
+                ffi::gk_leaderboard_submit_score(score, context, ids_json.as_ptr(), &mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -148,7 +146,7 @@ impl Leaderboard {
         }
     }
 
-    fn from_payload(payload: LeaderboardPayload) -> Self {
+    pub(crate) fn from_payload(payload: LeaderboardPayload) -> Self {
         Self {
             base_leaderboard_id: payload.base_leaderboard_id,
             title: payload.title,

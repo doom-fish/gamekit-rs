@@ -31,18 +31,18 @@ pub struct AchievementDescription {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct AchievementPayload {
-    identifier: String,
-    percent_complete: f64,
-    is_completed: bool,
-    last_reported_date: Option<String>,
-    shows_completion_banner: bool,
-    player: Option<Player>,
+pub(crate) struct AchievementPayload {
+    pub(crate) identifier: String,
+    pub(crate) percent_complete: f64,
+    pub(crate) is_completed: bool,
+    pub(crate) last_reported_date: Option<String>,
+    pub(crate) shows_completion_banner: bool,
+    pub(crate) player: Option<Player>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct AchievementDescriptionPayload {
+pub(crate) struct AchievementDescriptionPayload {
     identifier: Option<String>,
     group_identifier: Option<String>,
     title: Option<String>,
@@ -105,7 +105,10 @@ impl Achievement {
                 identifier: &achievement.identifier,
                 percent_complete: achievement.percent_complete,
                 shows_completion_banner: achievement.shows_completion_banner,
-                player_game_id: achievement.player.as_ref().map(|player| player.game_player_id.as_str()),
+                player_game_id: achievement
+                    .player
+                    .as_ref()
+                    .map(|player| player.game_player_id.as_str()),
             })
             .collect();
         report_payloads(&payloads)
@@ -123,7 +126,7 @@ impl Achievement {
         }
     }
 
-    fn from_payload(payload: AchievementPayload) -> Self {
+    pub(crate) fn from_payload(payload: AchievementPayload) -> Self {
         Self {
             identifier: payload.identifier,
             percent_complete: payload.percent_complete,
@@ -151,7 +154,7 @@ impl AchievementDescription {
         }
     }
 
-    fn from_payload(payload: AchievementDescriptionPayload) -> Self {
+    pub(crate) fn from_payload(payload: AchievementDescriptionPayload) -> Self {
         Self {
             identifier: payload.identifier,
             group_identifier: payload.group_identifier,
