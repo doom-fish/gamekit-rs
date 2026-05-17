@@ -1,6 +1,6 @@
 # GameKit coverage audit
 
-`gamekit-rs` v0.2.2 targets the GameKit APIs that are practical to expose from a safe Rust surface on macOS and now reaches 100% of the audited top-level macOS-available surface tracked in [`COVERAGE_AUDIT.md`](COVERAGE_AUDIT.md). The crate still mirrors the `screencapturekit-rs` bridge layout:
+`gamekit-rs` v0.2.3 targets the GameKit APIs that are practical to expose from a safe Rust surface on macOS and now reaches 100% of the audited top-level macOS-available surface tracked in [`COVERAGE_AUDIT.md`](COVERAGE_AUDIT.md). The crate still mirrors the `screencapturekit-rs` bridge layout:
 
 - one Swift bridge file per logical area
 - `@_cdecl` C-callable entry points
@@ -10,7 +10,7 @@
 
 ## Status by logical area
 
-| Area | Apple surface audited | Rust surface in v0.2.2 | Status |
+| Area | Apple surface audited | Rust surface in v0.2.3 | Status |
 | --- | --- | --- | --- |
 | Error | `GKErrorCode`, `GKErrorDomain` | `ErrorCode`, `ERROR_DOMAIN`, `GameKitFrameworkError::error_code` | Covered |
 | LocalPlayer | `GKLocalPlayer` snapshot, auth handler, recent players, challengeable friends, identity verification signature, friends authorization, friends lookup, friend request presentation, auth-change notification constant | `LocalPlayer`, `AuthObserver`, `FriendsAuthorizationStatus`, `IdentityVerificationSignature`, `PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME` | Broad coverage of local-player data and exported constants |
@@ -50,7 +50,7 @@ Some GameKit surface is not universally available:
 
 ## Remaining known gaps
 
-v0.2.2 closes every audited top-level macOS-available GameKit symbol in `COVERAGE_AUDIT.md`. The crate is still not a literal wrapper of every Apple member-level API. The main intentionally-unwrapped areas are:
+v0.2.3 closes every audited top-level macOS-available GameKit symbol in `COVERAGE_AUDIT.md`. The crate is still not a literal wrapper of every Apple member-level API. The main intentionally-unwrapped areas are:
 
 - some image/photo convenience loaders outside `LeaderboardSet::load_image_data()` and the newer activity/challenge metadata flows
 - newer nearby-player, queue/group-activity, and invite-cancellation helpers on `GKMatchmaker`

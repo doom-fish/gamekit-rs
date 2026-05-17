@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.3] - 2026-05-17
+
+### Added
+- Seven new integration tests under `tests/`, covering `LocalPlayer`, `Achievement`, `Leaderboard`, `Match`, `TurnBased`, `ChallengeDefinition`, and `GameActivity`
+
+### Changed
+- Bumped the crate version to `0.2.3`
+
 ## [0.2.2] - 2026-05-17
 
 ### Added

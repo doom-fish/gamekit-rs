@@ -2,7 +2,7 @@
 
 Safe Rust bindings for Apple's `GameKit` framework on macOS.
 
-## What is covered in v0.2.2
+## What is covered in v0.2.3
 
 `gamekit-rs` now reaches 100% of the audited top-level macOS-available `GameKit` surface in [`COVERAGE_AUDIT.md`](COVERAGE_AUDIT.md) and exposes logical modules for:
 
