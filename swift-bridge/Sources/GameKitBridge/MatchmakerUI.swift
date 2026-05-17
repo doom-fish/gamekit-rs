@@ -15,6 +15,10 @@ public typealias GKTurnBasedMatchmakerViewControllerCallbackFn = @convention(c) 
     UnsafePointer<CChar>?
 ) -> Void
 
+public typealias GKGameCenterViewControllerCallbackFn = @convention(c) (
+    UnsafeMutableRawPointer?
+) -> Void
+
 func gkMatchRequestPayload(from request: GKMatchRequest) -> GKMatchRequestPayload {
     GKMatchRequestPayload(
         minPlayers: request.minPlayers,
@@ -150,6 +154,57 @@ final class GKTurnBasedMatchmakerViewControllerBox {
     deinit {
         controller.turnBasedMatchmakerDelegate = nil
     }
+}
+
+final class GKGameCenterViewControllerDelegateImpl: NSObject, GKGameCenterControllerDelegate {
+    var callback: GKGameCenterViewControllerCallbackFn?
+    var refcon: UnsafeMutableRawPointer?
+
+    func gameCenterViewControllerDidFinish(_ gameCenterViewController: GKGameCenterViewController) {
+        _ = try? gkDialogControllerForPresentation().dismiss(NSNull())
+        callback?(refcon)
+    }
+}
+
+final class GKGameCenterViewControllerBox {
+    let controller: GKGameCenterViewController
+    let delegate: GKGameCenterViewControllerDelegateImpl
+
+    init(controller: GKGameCenterViewController) {
+        self.controller = controller
+        let delegate = GKGameCenterViewControllerDelegateImpl()
+        self.delegate = delegate
+        controller.gameCenterDelegate = delegate
+    }
+
+    deinit {
+        controller.gameCenterDelegate = nil
+    }
+}
+
+private func gkMakeGameCenterViewController(state: Int32) throws -> GKGameCenterViewController {
+    let viewState: GKGameCenterViewControllerState
+    switch state {
+    case 0:
+        viewState = .leaderboards
+    case 1:
+        viewState = .achievements
+    case 2:
+        viewState = .challenges
+    case 3:
+        viewState = .localPlayerProfile
+    case 4:
+        viewState = .dashboard
+    case 5:
+        guard #available(macOS 12.0, *) else {
+            throw GKBridgeError.unavailable("the Game Center friends list requires macOS 12.0 or newer")
+        }
+        viewState = .localPlayerFriendsList
+    default:
+        viewState = .default
+    }
+
+    return GKGameCenterViewController(state: viewState)
 }
 
 private func gkDialogControllerForPresentation() throws -> GKDialogController {
@@ -549,6 +604,45 @@ public func gk_dialog_present_turn_based_matchmaker_view_controller(
         gkPopulateError(outError, with: error)
         return gkStatusFor(error)
     }
+}
+
+@_cdecl("gk_dialog_present_game_center_view")
+public func gk_dialog_present_game_center_view(
+    _ state: Int32,
+    _ callback: GKGameCenterViewControllerCallbackFn?,
+    _ refcon: UnsafeMutableRawPointer?,
+    _ outPtr: UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
+    _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) -> Int32 {
+    do {
+        let dialog = try gkDialogControllerForPresentation()
+        let controller = try gkMakeGameCenterViewController(state: state)
+        let box = GKGameCenterViewControllerBox(controller: controller)
+        box.delegate.callback = callback
+        box.delegate.refcon = refcon
+        guard dialog.present(box.controller) else {
+            throw GKBridgeError.unknown("GKDialogController refused to present the Game Center controller")
+        }
+        outPtr?.pointee = gk_retain(box)
+        return GK_OK
+    } catch {
+        gkPopulateError(outError, with: error)
+        return gkStatusFor(error)
+    }
+}
+
+@_cdecl("gk_game_center_controller_clear_callback")
+public func gk_game_center_controller_clear_callback(_ ptr: UnsafeMutableRawPointer?) {
+    guard let ptr else { return }
+    let box = gk_borrow(ptr, as: GKGameCenterViewControllerBox.self)
+    box.delegate.callback = nil
+    box.delegate.refcon = nil
+}
+
+@_cdecl("gk_game_center_controller_release")
+public func gk_game_center_controller_release(_ ptr: UnsafeMutableRawPointer?) {
+    guard let ptr else { return }
+    gk_release(ptr)
 }
 
 @_cdecl("gk_dialog_dismiss")

@@ -11,7 +11,57 @@ struct GKMatchRequestPayload: Codable {
     let defaultNumberOfPlayers: Int
 }
 
-func gkMakeMatchRequest(from payload: GKMatchRequestPayload) async throws -> GKMatchRequest {
+struct GKMatchedPlayerPropertiesPayload: Codable {
+    let player: GKPlayerPayload
+    let propertiesJson: String?
+}
+
+struct GKMatchedPlayersPayload: Codable {
+    let propertiesJson: String?
+    let players: [GKPlayerPayload]
+    let playerProperties: [GKMatchedPlayerPropertiesPayload]
+}
+
+public typealias GKInviteRecipientResponseCallbackFn = @convention(c) (
+    UnsafeMutableRawPointer?,
+    UnsafePointer<CChar>?,
+    Int32
+) -> Void
+
+private func gkEncodeJSONObject(_ object: Any) throws -> String {
+    let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+    guard let string = String(data: data, encoding: .utf8) else {
+        throw GKBridgeError.unknown("failed to encode JSON object as UTF-8")
+    }
+    return string
+}
+
+private func gkMatchPropertiesJSONString(_ properties: [String: Any]?) -> String? {
+    guard let properties else {
+        return nil
+    }
+    return try? gkEncodeJSONObject(properties)
+}
+
+@available(macOS 14.2, *)
+private func gkMatchedPlayersPayload(from matchedPlayers: GKMatchedPlayers) -> GKMatchedPlayersPayload {
+    GKMatchedPlayersPayload(
+        propertiesJson: gkMatchPropertiesJSONString(matchedPlayers.properties),
+        players: matchedPlayers.players.map(gkPlayerPayload(from:)),
+        playerProperties: matchedPlayers.playerProperties?.map {
+            GKMatchedPlayerPropertiesPayload(
+                player: gkPlayerPayload(from: $0.key),
+                propertiesJson: gkMatchPropertiesJSONString($0.value)
+            )
+        } ?? []
+    )
+}
+
+func gkMakeMatchRequest(
+    from payload: GKMatchRequestPayload,
+    responseCallback: GKInviteRecipientResponseCallbackFn? = nil,
+    refcon: UnsafeMutableRawPointer? = nil
+) async throws -> GKMatchRequest {
     let request = GKMatchRequest()
     request.minPlayers = payload.minPlayers
     request.maxPlayers = payload.maxPlayers
@@ -22,19 +72,35 @@ func gkMakeMatchRequest(from payload: GKMatchRequestPayload) async throws -> GKM
     if !payload.recipientIds.isEmpty {
         request.recipients = try await gkLoadPlayers(identifiedBy: payload.recipientIds)
     }
+    if let responseCallback {
+        request.recipientResponseHandler = { player, response in
+            guard let json = try? gkEncodeJSON(gkPlayerPayload(from: player)), let cString = gkCString(json) else {
+                responseCallback(refcon, nil, Int32(response.rawValue))
+                return
+            }
+            defer { free(cString) }
+            responseCallback(refcon, UnsafePointer(cString), Int32(response.rawValue))
+        }
+    }
     return request
 }
 
 @_cdecl("gk_matchmaker_find_match_json")
 public func gk_matchmaker_find_match_json(
     _ requestJSON: UnsafePointer<CChar>?,
+    _ callback: GKInviteRecipientResponseCallbackFn?,
+    _ refcon: UnsafeMutableRawPointer?,
     _ outMatchPtr: UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
             let payload = try gkDecodeJSON(requestJSON, as: GKMatchRequestPayload.self)
-            let request = try await gkMakeMatchRequest(from: payload)
+            let request = try await gkMakeMatchRequest(
+                from: payload,
+                responseCallback: callback,
+                refcon: refcon
+            )
             return try await withCheckedThrowingContinuation { continuation in
                 GKMatchmaker.shared().findMatch(for: request) { match, error in
                     if let error {
@@ -59,13 +125,19 @@ public func gk_matchmaker_find_match_json(
 @_cdecl("gk_matchmaker_find_hosted_players_json")
 public func gk_matchmaker_find_hosted_players_json(
     _ requestJSON: UnsafePointer<CChar>?,
+    _ callback: GKInviteRecipientResponseCallbackFn?,
+    _ refcon: UnsafeMutableRawPointer?,
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
             let payload = try gkDecodeJSON(requestJSON, as: GKMatchRequestPayload.self)
-            let request = try await gkMakeMatchRequest(from: payload)
+            let request = try await gkMakeMatchRequest(
+                from: payload,
+                responseCallback: callback,
+                refcon: refcon
+            )
             return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKPlayer], Error>) in
                 GKMatchmaker.shared().findPlayers(forHostedRequest: request) { players, error in
                     if let error {
@@ -78,6 +150,44 @@ public func gk_matchmaker_find_hosted_players_json(
         },
         onSuccess: { (players: [GKPlayer]) in
             outJSON?.pointee = gkCString((try? gkEncodeJSON(players.map(gkPlayerPayload(from:)))) ?? "[]")
+        },
+        onError: { error in
+            gkPopulateError(outError, with: error)
+        }
+    )
+}
+
+@_cdecl("gk_matchmaker_find_matched_players_json")
+public func gk_matchmaker_find_matched_players_json(
+    _ requestJSON: UnsafePointer<CChar>?,
+    _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
+    _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) -> Int32 {
+    gkBlockOnAsync(
+        work: {
+            guard #available(macOS 14.2, *) else {
+                throw GKBridgeError.unavailable("rule-based matched players require macOS 14.2 or newer")
+            }
+            let payload = try gkDecodeJSON(requestJSON, as: GKMatchRequestPayload.self)
+            let request = try await gkMakeMatchRequest(from: payload)
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GKMatchedPlayers, Error>) in
+                GKMatchmaker.shared().findMatchedPlayers(request) { matchedPlayers, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else if let matchedPlayers {
+                        continuation.resume(returning: matchedPlayers)
+                    } else {
+                        continuation.resume(throwing: GKBridgeError.unknown("findMatchedPlayers returned nil"))
+                    }
+                }
+            }
+        },
+        onSuccess: { matchedPlayers in
+            if #available(macOS 14.2, *) {
+                outJSON?.pointee = gkCString((try? gkEncodeJSON(gkMatchedPlayersPayload(from: matchedPlayers))) ?? "{}")
+            } else {
+                outJSON?.pointee = gkCString("{}")
+            }
         },
         onError: { error in
             gkPopulateError(outError, with: error)

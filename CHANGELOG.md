@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.2] - 2026-05-17
+
+### Added
+- `BasePlayer`, `LeaderboardSet`, `MatchedPlayers`, `GameCenterControllerDelegate`, and `GameCenterViewState`
+- Typed `GameKit` error coverage via `ErrorCode`, `ERROR_DOMAIN`, and `GameKitFrameworkError::error_code`
+- Exported GameKit constants for turn/exchange timeouts plus player/auth notification names and `PLAYER_ID_NO_LONGER_AVAILABLE`
+- Invite-recipient response coverage via `InviteRecipientResponse` and `Matchmaker::find_*_with_recipient_responses`
+
+### Changed
+- Closed the 15 remaining audited top-level GameKit gaps and updated the coverage audit to 100%
+- Refreshed the README, coverage notes, and smoke tests to reflect the completed surface
+- Bumped the crate version to `0.2.2`
+
 ## [0.2.1] - 2026-05-16
 
 ### Added

@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 use std::mem::size_of;
 
+use serde_json::json;
+
 fn sample_player() -> gamekit::Player {
     gamekit::Player {
         game_player_id: "G:player-1".to_owned(),
@@ -31,12 +33,40 @@ fn local_player_area_constructs_snapshot() {
 }
 
 #[test]
+fn base_player_area_converts_snapshots() {
+    let player = sample_player();
+    let local = gamekit::LocalPlayer {
+        is_authenticated: true,
+        is_underage: false,
+        is_multiplayer_gaming_restricted: false,
+        is_personalized_communication_restricted: false,
+        is_presenting_friend_request_view_controller: false,
+        player: player.clone(),
+    };
+    let from_player: gamekit::BasePlayer = (&player).into();
+    let from_local: gamekit::BasePlayer = (&local).into();
+
+    assert_eq!(from_player.display_name.as_deref(), Some("Doom Fish"));
+    assert_eq!(from_player.player_id.as_deref(), Some("legacy-player-1"));
+    assert_eq!(from_local, from_player);
+}
+
+#[test]
 fn player_area_round_trips_json() {
     let player = sample_player();
     let json = serde_json::to_string(&player).expect("serialize player");
     let decoded: gamekit::Player = serde_json::from_str(&json).expect("deserialize player");
 
     assert_eq!(decoded, player);
+    assert_eq!(gamekit::PhotoSize::Normal, gamekit::PhotoSize::Normal);
+    assert_eq!(
+        gamekit::PLAYER_DID_CHANGE_NOTIFICATION_NAME,
+        "GKPlayerDidChangeNotificationName"
+    );
+    assert_eq!(
+        gamekit::PLAYER_ID_NO_LONGER_AVAILABLE,
+        "playerID is no longer available"
+    );
 }
 
 #[test]
@@ -59,6 +89,18 @@ fn leaderboard_area_constructs_snapshot() {
 }
 
 #[test]
+fn leaderboard_set_area_constructs_model() {
+    let set = gamekit::LeaderboardSet {
+        title: "Seasonal".to_owned(),
+        group_identifier: Some("arcade".to_owned()),
+        identifier: Some("seasonal-1".to_owned()),
+    };
+
+    assert_eq!(set.identifier.as_deref(), Some("seasonal-1"));
+    assert_eq!(set.title, "Seasonal");
+}
+
+#[test]
 fn leaderboard_entry_area_constructs_result() {
     let entry = gamekit::LeaderboardEntry {
         rank: 1,
@@ -76,6 +118,24 @@ fn leaderboard_entry_area_constructs_result() {
 
     assert_eq!(result.local_player_entry, Some(entry));
     assert_eq!(result.total_player_count, 1);
+}
+
+#[test]
+fn error_area_exposes_typed_codes_and_constants() {
+    let error = gamekit::GameKitFrameworkError {
+        domain: gamekit::ERROR_DOMAIN.to_owned(),
+        code: 33,
+        localized_description: "connection timed out".to_owned(),
+    };
+
+    assert_eq!(
+        error.error_code(),
+        Some(gamekit::ErrorCode::ConnectionTimeout)
+    );
+    assert_eq!(
+        gamekit::ErrorCode::FriendRequestNotAvailable.raw_value(),
+        103
+    );
 }
 
 #[test]
@@ -179,17 +239,34 @@ fn turn_based_area_constructs_models() {
     assert_eq!(request.min_players, 2);
     assert_eq!(match_snapshot.status, gamekit::TurnBasedMatchStatus::Open);
     assert_eq!(match_snapshot.active_exchange_indices, vec![0]);
+    assert!((gamekit::TURN_TIMEOUT_DEFAULT - 604_800.0).abs() < f64::EPSILON);
+    assert!(gamekit::TURN_TIMEOUT_NONE.abs() < f64::EPSILON);
+    assert!((gamekit::EXCHANGE_TIMEOUT_DEFAULT - 604_800.0).abs() < f64::EPSILON);
+    assert!(gamekit::EXCHANGE_TIMEOUT_NONE.abs() < f64::EPSILON);
 }
 
 #[test]
 fn real_time_area_uses_request_defaults() {
     let request = gamekit::MatchRequest::default();
+    let matched = gamekit::MatchedPlayers {
+        properties: Some(BTreeMap::from([("mode".to_owned(), json!("ranked"))])),
+        players: vec![sample_player()],
+        player_properties: vec![gamekit::MatchedPlayerProperties {
+            player: sample_player(),
+            properties: BTreeMap::from([("bucket".to_owned(), json!(7))]),
+        }],
+    };
 
     assert_eq!(request.min_players, 2);
     assert_eq!(request.max_players, 4);
     assert!(request.invite_message.is_none());
     assert_eq!(size_of::<gamekit::Matchmaker>(), 0);
     assert_eq!(gamekit::MatchType::Hosted, gamekit::MatchType::Hosted);
+    assert_eq!(
+        gamekit::InviteRecipientResponse::Accepted,
+        gamekit::InviteRecipientResponse::Accepted
+    );
+    assert_eq!(matched.player_properties.len(), 1);
 }
 
 #[test]
@@ -376,6 +453,11 @@ fn local_player_listener_area_constructs_events() {
         }
         _ => panic!("unexpected saved-game event variant"),
     }
+
+    assert_eq!(
+        gamekit::PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME,
+        "GKPlayerAuthenticationDidChangeNotificationName"
+    );
 }
 
 #[test]
@@ -393,5 +475,9 @@ fn matchmaking_ui_area_references_types() {
     assert_eq!(
         gamekit::MatchmakingMode::InviteOnly,
         gamekit::MatchmakingMode::InviteOnly
+    );
+    assert_eq!(
+        gamekit::GameCenterViewState::Dashboard,
+        gamekit::GameCenterViewState::Dashboard
     );
 }

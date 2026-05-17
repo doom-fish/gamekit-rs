@@ -29,6 +29,26 @@ pub enum MatchmakingMode {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DialogController;
 
+/// Sections that can be shown by the legacy Game Center controller.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GameCenterViewState {
+    Default,
+    Leaderboards,
+    Achievements,
+    Challenges,
+    LocalPlayerProfile,
+    Dashboard,
+    LocalPlayerFriendsList,
+}
+
+/// Guard for a legacy Game Center controller delegate registration.
+pub struct GameCenterControllerDelegate {
+    controller_ptr: *mut c_void,
+    handler_ptr: *mut Box<dyn Fn() + Send + 'static>,
+}
+
+unsafe impl Send for GameCenterControllerDelegate {}
+
 /// Events emitted by `GKMatchmakerViewControllerDelegate`.
 #[derive(Debug)]
 pub enum MatchmakerViewControllerEvent {
@@ -180,6 +200,44 @@ impl DialogController {
             }
             Ok(())
         }
+    }
+
+    /// Presents a legacy Game Center controller for the supplied section.
+    pub fn present_game_center_state<F: Fn() + Send + 'static>(
+        &self,
+        state: GameCenterViewState,
+        handler: F,
+    ) -> Result<GameCenterControllerDelegate, GameKitError> {
+        let boxed: Box<dyn Fn() + Send + 'static> = Box::new(handler);
+        let handler_ptr: *mut Box<dyn Fn() + Send + 'static> = Box::into_raw(Box::new(boxed));
+
+        unsafe {
+            let mut out_ptr: *mut c_void = std::ptr::null_mut();
+            let mut out_error: *mut c_char = std::ptr::null_mut();
+            let status = ffi::gk_dialog_present_game_center_view(
+                state.to_raw(),
+                Some(game_center_trampoline),
+                handler_ptr.cast(),
+                &mut out_ptr,
+                &mut out_error,
+            );
+            if status != ffi::status::OK {
+                drop(Box::from_raw(handler_ptr));
+                return Err(private::error_from_status(status, out_error));
+            }
+            Ok(GameCenterControllerDelegate {
+                controller_ptr: out_ptr,
+                handler_ptr,
+            })
+        }
+    }
+
+    /// Presents the legacy Game Center dashboard.
+    pub fn present_game_center_dashboard<F: Fn() + Send + 'static>(
+        &self,
+        handler: F,
+    ) -> Result<GameCenterControllerDelegate, GameKitError> {
+        self.present_game_center_state(GameCenterViewState::Dashboard, handler)
     }
 
     /// Dismisses the currently presented Game Center dialog.
@@ -516,6 +574,16 @@ impl Drop for TurnBasedMatchmakerViewControllerDelegate {
     }
 }
 
+impl Drop for GameCenterControllerDelegate {
+    fn drop(&mut self) {
+        unsafe {
+            ffi::gk_game_center_controller_clear_callback(self.controller_ptr);
+            ffi::gk_game_center_controller_release(self.controller_ptr);
+            drop(Box::from_raw(self.handler_ptr));
+        }
+    }
+}
+
 impl MatchmakingMode {
     const fn from_raw(value: i32) -> Self {
         match value {
@@ -534,6 +602,25 @@ impl MatchmakingMode {
             Self::InviteOnly => 3,
         }
     }
+}
+
+impl GameCenterViewState {
+    const fn to_raw(self) -> i32 {
+        match self {
+            Self::Default => -1,
+            Self::Leaderboards => 0,
+            Self::Achievements => 1,
+            Self::Challenges => 2,
+            Self::LocalPlayerProfile => 3,
+            Self::Dashboard => 4,
+            Self::LocalPlayerFriendsList => 5,
+        }
+    }
+}
+
+unsafe extern "C" fn game_center_trampoline(refcon: *mut c_void) {
+    let handler = &*(refcon.cast::<Box<dyn Fn() + Send + 'static>>());
+    handler();
 }
 
 unsafe extern "C" fn matchmaker_view_controller_trampoline(

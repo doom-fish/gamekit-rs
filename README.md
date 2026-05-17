@@ -2,21 +2,20 @@
 
 Safe Rust bindings for Apple's `GameKit` framework on macOS.
 
-## What is covered in v0.2.1
+## What is covered in v0.2.2
 
-`gamekit-rs` now exposes logical modules for:
+`gamekit-rs` now reaches 100% of the audited top-level macOS-available `GameKit` surface in [`COVERAGE_AUDIT.md`](COVERAGE_AUDIT.md) and exposes logical modules for:
 
-- `LocalPlayer`
+- `BasePlayer`, `Player`, and `LocalPlayer`
 - `LocalPlayerListener`
-- `Player`
-- `Leaderboard`
-- `LeaderboardEntry`
+- typed framework errors and exported `GameKit` constants
+- `Leaderboard`, `LeaderboardSet`, and `LeaderboardEntry`
 - `Achievement`
 - `Match`
 - `TurnBased`
-- `RealTime` matchmaking
+- `RealTime` matchmaking, including `MatchedPlayers` and invite-recipient responses
 - `MatchmakerViewController` / `TurnBasedMatchmakerViewController`
-- `DialogController`
+- `DialogController`, including legacy Game Center dismissal callbacks
 - `GameActivity`
 - notification banners
 - `AccessPoint`
@@ -24,7 +23,7 @@ Safe Rust bindings for Apple's `GameKit` framework on macOS.
 - `Score`
 - `SavedGame`
 
-See [`COVERAGE.md`](COVERAGE.md) for the audited SDK coverage table, deprecated Apple APIs that are still exposed, and the remaining known gaps.
+See [`COVERAGE.md`](COVERAGE.md) for the audited SDK coverage table, deprecated Apple APIs that are still exposed, runtime gating notes, and the remaining member-level omissions.
 
 ## Requirements
 
@@ -35,11 +34,18 @@ See [`COVERAGE.md`](COVERAGE.md) for the audited SDK coverage table, deprecated 
 ## Usage
 
 ```rust,no_run
-use gamekit::LocalPlayer;
+use gamekit::{ErrorCode, LocalPlayer, ERROR_DOMAIN};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let player = LocalPlayer::local()?;
     println!("authenticated: {}", player.is_authenticated);
+
+    let framework_error = gamekit::GameKitFrameworkError {
+        domain: ERROR_DOMAIN.to_owned(),
+        code: 33,
+        localized_description: "connection timed out".to_owned(),
+    };
+    assert_eq!(framework_error.error_code(), Some(ErrorCode::ConnectionTimeout));
     Ok(())
 }
 ```

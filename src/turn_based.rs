@@ -6,6 +6,18 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ffi, private, Achievement, GameKitError, Player, Score};
 
+/// The default turn timeout in seconds (`GKTurnTimeoutDefault`).
+pub const TURN_TIMEOUT_DEFAULT: f64 = 604_800.0;
+
+/// Disables the turn timeout (`GKTurnTimeoutNone`).
+pub const TURN_TIMEOUT_NONE: f64 = 0.0;
+
+/// The default exchange timeout in seconds (`GKExchangeTimeoutDefault`).
+pub const EXCHANGE_TIMEOUT_DEFAULT: f64 = 604_800.0;
+
+/// Disables the exchange timeout (`GKExchangeTimeoutNone`).
+pub const EXCHANGE_TIMEOUT_NONE: f64 = 0.0;
+
 /// Overall state of a turn-based match.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TurnBasedMatchStatus {

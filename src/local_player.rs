@@ -5,6 +5,10 @@ use serde::Deserialize;
 
 use crate::{ffi, private, GameKitError, Player};
 
+/// The exported authentication-change notification name.
+pub const PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME: &str =
+    "GKPlayerAuthenticationDidChangeNotificationName";
+
 /// Represents the local authenticated player.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone)]
@@ -78,7 +82,8 @@ impl LocalPlayer {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_local_player_load_recent_players_json(&mut out_json, &mut out_error);
+            let status =
+                ffi::gk_local_player_load_recent_players_json(&mut out_json, &mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -118,8 +123,7 @@ impl LocalPlayer {
     }
 
     /// Loads the current friend-list authorization status.
-    pub fn load_friends_authorization_status(
-    ) -> Result<FriendsAuthorizationStatus, GameKitError> {
+    pub fn load_friends_authorization_status() -> Result<FriendsAuthorizationStatus, GameKitError> {
         unsafe {
             let mut out_status = 0_i32;
             let mut out_error: *mut c_char = std::ptr::null_mut();

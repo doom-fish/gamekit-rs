@@ -106,5 +106,16 @@ unsafe extern "C" {
         out_error: *mut *mut c_char,
     ) -> i32;
 
+    pub fn gk_dialog_present_game_center_view(
+        state: i32,
+        callback: Option<unsafe extern "C" fn(*mut c_void)>,
+        refcon: *mut c_void,
+        out_ptr: *mut *mut c_void,
+        out_error: *mut *mut c_char,
+    ) -> i32;
+
+    pub fn gk_game_center_controller_clear_callback(ptr: *mut c_void);
+    pub fn gk_game_center_controller_release(ptr: *mut c_void);
+
     pub fn gk_dialog_dismiss(out_error: *mut *mut c_char) -> i32;
 }

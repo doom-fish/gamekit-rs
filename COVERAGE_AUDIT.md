@@ -3,10 +3,10 @@
 > Scope: top-level macOS-available classes, protocols, enums, and exported constants in `GameKit.framework`. Method-level members, category-only extensions, deprecated typedef aliases (for example `GKInviteeResponse`), and macOS-unavailable symbols (`GKPeerPicker*`, `GKVoiceChatService`, `GKVoiceChatServiceError`, `GKSessionError`, `GKGameSessionSharingViewController*`) are excluded from the counts. Deprecated symbols remain listed as **EXEMPT**. If Apple left a symbol non-deprecated even though it mainly serves a deprecated type (for example `GKGameCenterControllerDelegate`), it remains a **GAP**.
 
 SDK_PUBLIC_SYMBOLS: 101
-VERIFIED: 48
-GAPS: 15
+VERIFIED: 63
+GAPS: 0
 EXEMPT: 38
-COVERAGE_PCT: 76.2%
+COVERAGE_PCT: 100.0%
 
 ## 🟢 VERIFIED
 | Symbol | Kind | Header | Wrapped by |
@@ -15,26 +15,35 @@ COVERAGE_PCT: 76.2%
 | GKAccessPointLocation | enum | `GKAccessPoint.h` | `AccessPointLocation` |
 | GKAchievement | class | `GKAchievement.h` | `Achievement` |
 | GKAchievementDescription | class | `GKAchievementDescription.h` | `AchievementDescription` |
+| GKBasePlayer | class | `GKBasePlayer.h` | `BasePlayer` |
 | GKChallengeDefinition | class | `GKChallengeDefinition.h` | `ChallengeDefinition` |
 | GKDialogController | class | `GKDialogController.h` | `DialogController` |
+| GKErrorCode | enum | `GKError.h` | `ErrorCode`, `GameKitFrameworkError::error_code` |
+| GKErrorDomain | constant | `GKError.h` | `ERROR_DOMAIN` |
+| GKExchangeTimeoutDefault | constant | `GKTurnBasedMatch.h` | `EXCHANGE_TIMEOUT_DEFAULT` |
+| GKExchangeTimeoutNone | constant | `GKTurnBasedMatch.h` | `EXCHANGE_TIMEOUT_NONE` |
 | GKFriendsAuthorizationStatus | enum | `GKLocalPlayer.h` | `FriendsAuthorizationStatus` |
 | GKGameActivity | class | `GKGameActivity.h` | `GameActivity`, `GameActivitySnapshot` |
 | GKGameActivityDefinition | class | `GKGameActivityDefinition.h` | `GameActivityDefinition`, `GameActivityDefinition::load_*` |
 | GKGameActivityListener | protocol | `GKGameActivityListener.h` | `LocalPlayerListener` via `LocalPlayerEvent::WantsToPlayGameActivity` |
 | GKGameActivityPlayStyle | enum | `GKGameActivityPlayStyle.h` | `GameActivityPlayStyle` |
 | GKGameActivityState | enum | `GKGameActivityState.h` | `GameActivityState` |
+| GKGameCenterControllerDelegate | protocol | `GKGameCenterViewController.h` | `GameCenterControllerDelegate`, `DialogController::present_game_center_*` |
 | GKInvite | class | `GKMatchmaker.h` | `Invite`, `MatchmakerViewController::from_invite` |
 | GKInviteEventListener | protocol | `GKMatchmaker.h` | `LocalPlayerListener` via invite-related `LocalPlayerEvent` variants |
+| GKInviteRecipientResponse | enum | `GKMatchmaker.h` | `InviteRecipientResponse`, `Matchmaker::find_*_with_recipient_responses` |
 | GKLeaderboard | class | `GKLeaderboard.h` | `Leaderboard` |
 | GKLeaderboardEntry | class | `GKLeaderboardEntry.h` | `LeaderboardEntry`, `Leaderboard::load_entries*` |
 | GKLeaderboardPlayerScope | enum | `GKLeaderboard.h` | `PlayerScope` |
 | GKLeaderboardScore | class | `GKLeaderboardScore.h` | `Score` (turn-based `end_match_in_turn`) |
+| GKLeaderboardSet | class | `GKLeaderboardSet.h` | `LeaderboardSet`, `LeaderboardSet::load_*` |
 | GKLeaderboardTimeScope | enum | `GKLeaderboard.h` | `TimeScope` |
 | GKLeaderboardType | enum | `GKLeaderboard.h` | `LeaderboardType` |
 | GKLocalPlayer | class | `GKLocalPlayer.h` | `LocalPlayer`, `AuthObserver` |
 | GKLocalPlayerListener | protocol | `GKLocalPlayer.h` | `LocalPlayer::register_listener`, `LocalPlayerListener` |
 | GKMatch | class | `GKMatch.h` | `Match` |
 | GKMatchDelegate | protocol | `GKMatch.h` | `MatchDelegate` via `Match::set_delegate` |
+| GKMatchedPlayers | class | `GKMatchmaker.h` | `MatchedPlayers`, `Matchmaker::find_matched_players` |
 | GKMatchRequest | class | `GKMatchmaker.h` | `MatchRequest`, `TurnBasedMatchRequest` |
 | GKMatchSendDataMode | enum | `GKMatch.h` | `SendDataMode` |
 | GKMatchType | enum | `GKMatchmaker.h` | `MatchType` |
@@ -42,8 +51,12 @@ COVERAGE_PCT: 76.2%
 | GKMatchmakerViewController | class | `GKMatchmakerViewController.h` | `MatchmakerViewController` |
 | GKMatchmakerViewControllerDelegate | protocol | `GKMatchmakerViewController.h` | `MatchmakerViewControllerDelegate` via `MatchmakerViewController::set_delegate` |
 | GKMatchmakingMode | enum | `GKMatchmakerViewController.h` | `MatchmakingMode` |
+| GKPhotoSize | enum | `GKPlayer.h` | `PhotoSize` |
 | GKPlayer | class | `GKPlayer.h` | `Player` |
+| GKPlayerAuthenticationDidChangeNotificationName | constant | `GKLocalPlayer.h` | `PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME` |
 | GKPlayerConnectionState | enum | `GKMatch.h` | `ConnectionState` |
+| GKPlayerDidChangeNotificationName | constant | `GKPlayer.h` | `PLAYER_DID_CHANGE_NOTIFICATION_NAME` |
+| GKPlayerIDNoLongerAvailable | constant | `GKPlayer.h` | `PLAYER_ID_NO_LONGER_AVAILABLE` |
 | GKReleaseState | enum | `GKReleaseState.h` | `ChallengeDefinition.release_state` (stringified), `GameActivityDefinition.release_state` |
 | GKSavedGame | class | `GKSavedGame.h` | `SavedGame` |
 | GKSavedGameListener | protocol | `GKSavedGameListener.h` | `LocalPlayerListener` via saved-game `LocalPlayerEvent` variants |
@@ -58,26 +71,12 @@ COVERAGE_PCT: 76.2%
 | GKTurnBasedMatchmakerViewControllerDelegate | protocol | `GKTurnBasedMatchmakerViewController.h` | `TurnBasedMatchmakerViewControllerDelegate` via `TurnBasedMatchmakerViewController::set_delegate` |
 | GKTurnBasedParticipant | class | `GKTurnBasedMatch.h` | `TurnBasedParticipant` |
 | GKTurnBasedParticipantStatus | enum | `GKTurnBasedMatch.h` | `TurnBasedParticipantStatus` |
+| GKTurnTimeoutDefault | constant | `GKTurnBasedMatch.h` | `TURN_TIMEOUT_DEFAULT` |
+| GKTurnTimeoutNone | constant | `GKTurnBasedMatch.h` | `TURN_TIMEOUT_NONE` |
 | GKViewController | protocol | `GKDialogController.h` | `DialogController::present_*` with Game Center view-controller wrappers |
 
 ## 🔴 GAPS
-| Symbol | Kind | Header | Notes |
-| --- | --- | --- | --- |
-| GKBasePlayer | class | `GKBasePlayer.h` | No dedicated base-player abstraction; `Player` and `LocalPlayer` flatten the useful fields. |
-| GKErrorCode | enum | `GKError.h` | Errors surface as raw codes in `GameKitFrameworkError`, not as the typed SDK enum. |
-| GKErrorDomain | constant | `GKError.h` | The crate exposes framework error domains as strings, not the exported SDK constant. |
-| GKExchangeTimeoutDefault | constant | `GKTurnBasedMatch.h` | Exchange timeout convenience constants are not exposed. |
-| GKExchangeTimeoutNone | constant | `GKTurnBasedMatch.h` | Exchange timeout convenience constants are not exposed. |
-| GKGameCenterControllerDelegate | protocol | `GKGameCenterViewController.h` | Legacy Game Center UI delegate is not bridged; only `AccessPoint` flows are exposed. |
-| GKInviteRecipientResponse | enum | `GKMatchmaker.h` | `recipientResponseHandler` is not exposed on `MatchRequest`. |
-| GKLeaderboardSet | class | `GKLeaderboardSet.h` | Leaderboard-set discovery and image-loading APIs are missing. |
-| GKMatchedPlayers | class | `GKMatchmaker.h` | Rule-based matchmaking results are not wrapped. |
-| GKPhotoSize | enum | `GKPlayer.h` | Player photo-loading APIs are intentionally unwrapped. |
-| GKPlayerAuthenticationDidChangeNotificationName | constant | `GKLocalPlayer.h` | Authentication observation uses `authenticateHandler`, not the notification symbol. |
-| GKPlayerDidChangeNotificationName | constant | `GKPlayer.h` | Player-change notifications are not exposed. |
-| GKPlayerIDNoLongerAvailable | constant | `GKPlayer.h` | The sentinel constant for deprecated player IDs is not exposed. |
-| GKTurnTimeoutDefault | constant | `GKTurnBasedMatch.h` | Turn timeout convenience constants are not exposed. |
-| GKTurnTimeoutNone | constant | `GKTurnBasedMatch.h` | Turn timeout convenience constants are not exposed. |
+None.
 
 ## ⏭️ EXEMPT
 | Symbol | Kind | Header | Reason | SDK attribute |
