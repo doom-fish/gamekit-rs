@@ -14,6 +14,9 @@ pub mod challenge_definition;
 pub mod error;
 mod ffi;
 pub mod game_activity;
+
+#[cfg(feature = "async")]
+pub mod async_api;
 pub mod gk_match;
 pub mod leaderboard;
 pub mod leaderboard_entry;

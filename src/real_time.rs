@@ -340,7 +340,7 @@ impl MatchedPlayerProperties {
     }
 }
 
-fn request_json(request: &MatchRequest) -> Result<std::ffi::CString, GameKitError> {
+pub(crate) fn request_json(request: &MatchRequest) -> Result<std::ffi::CString, GameKitError> {
     let payload = MatchRequestPayload::from_request(request);
     private::json_cstring(&payload, "match request")
 }

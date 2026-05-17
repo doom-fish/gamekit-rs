@@ -39,7 +39,7 @@ fn turn_based_area_preserves_request_participant_and_exchange_state() {
         send_date: Some("2026-01-01T00:00:01Z".to_owned()),
         timeout_date: None,
         completion_date: Some("2026-01-01T00:10:00Z".to_owned()),
-        replies: vec![reply.clone()],
+        replies: vec![reply],
     };
     let snapshot = TurnBasedMatch {
         match_id: "turn-based-1".to_owned(),

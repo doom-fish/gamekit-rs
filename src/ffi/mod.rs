@@ -2,6 +2,7 @@
 
 mod access_point;
 mod achievement;
+mod async_ffi;
 mod challenge_definition;
 mod core;
 mod game_activity;
@@ -21,6 +22,7 @@ mod turn_based;
 
 pub use access_point::*;
 pub use achievement::*;
+pub use async_ffi::*;
 pub use challenge_definition::*;
 pub use core::*;
 pub use game_activity::*;

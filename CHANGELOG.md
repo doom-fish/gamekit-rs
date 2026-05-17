@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0] - 2026-05-18
+
+### Added
+- `async_api` module behind the `async` feature flag, wrapping 9 Apple GameKit completion-handler APIs as executor-agnostic Rust `Future` newtypes:
+  - `AsyncLocalPlayer` — `authenticate` + `friends_authorization_status`
+  - `AsyncMatchmaker` — `find_match` + `find_players`
+  - `AsyncLeaderboard` — `load_leaderboards` + `load_entries`
+  - `AsyncAchievement` — `load_achievements` + `report_achievement`
+  - `AsyncSavedGame` — `fetch_all_saved_games`, `load_data`, `save_game`
+- 11 Swift thunks in `Async.swift` using `@_cdecl` to fire C callbacks from Task closures
+- 11 public `Future` newtypes (`AuthenticateFuture`, `FriendsAuthorizationFuture`, `FindMatchFuture`, `FindPlayersFuture`, `LoadLeaderboardsFuture`, `LoadEntriesFuture`, `LoadAchievementsFuture`, `ReportAchievementFuture`, `FetchAllSavedGamesFuture`, `LoadSavedGameDataFuture`, `SaveGameFuture`)
+- 4 new async examples: `15_async_auth`, `16_async_leaderboard`, `17_async_achievement`, `18_async_saved_game`
+- `doom-fish-utils` dependency providing the `AsyncCompletion` / `AsyncCompletionFuture` pattern
+- `pollster = "0.3"` dev-dependency for blocking on futures in tests and examples
+
+### Changed
+- Bumped the crate version to `0.3.0`
+
 ## [0.2.3] - 2026-05-17
 
 ### Added

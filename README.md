@@ -2,7 +2,7 @@
 
 Safe Rust bindings for Apple's `GameKit` framework on macOS.
 
-## What is covered in v0.2.3
+## What is covered in v0.3.0
 
 `gamekit-rs` now reaches 100% of the audited top-level macOS-available `GameKit` surface in [`COVERAGE_AUDIT.md`](COVERAGE_AUDIT.md) and exposes logical modules for:
 
@@ -22,6 +22,33 @@ Safe Rust bindings for Apple's `GameKit` framework on macOS.
 - `ChallengeDefinition`
 - `Score`
 - `SavedGame`
+
+### Async API (feature = `"async"`)
+
+Enable the `async` feature to get executor-agnostic `Future` wrappers for 9 GameKit completion-handler families:
+
+```toml
+[dependencies]
+gamekit = { version = "0.3", features = ["async"] }
+```
+
+| Wrapper | Futures |
+|---|---|
+| `AsyncLocalPlayer` | `authenticate`, `friends_authorization_status` |
+| `AsyncMatchmaker` | `find_match`, `find_players` |
+| `AsyncLeaderboard` | `load_leaderboards`, `load_entries` |
+| `AsyncAchievement` | `load_achievements`, `report_achievement` |
+| `AsyncSavedGame` | `fetch_all_saved_games`, `load_data`, `save_game` |
+
+```rust,no_run
+#[cfg(feature = "async")]
+async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    use gamekit::async_api::AsyncLocalPlayer;
+    let player = AsyncLocalPlayer::new().authenticate().await?;
+    println!("authenticated as {}", player.display_name.as_deref().unwrap_or("?"));
+    Ok(())
+}
+```
 
 See [`COVERAGE.md`](COVERAGE.md) for the audited SDK coverage table, deprecated Apple APIs that are still exposed, runtime gating notes, and the remaining member-level omissions.
 

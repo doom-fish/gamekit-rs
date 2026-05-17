@@ -27,7 +27,7 @@ public typealias GKAuthCallbackFn = @convention(c) (UnsafeMutableRawPointer?, Un
 private var gkAuthCallback: GKAuthCallbackFn?
 private var gkAuthRefcon: UnsafeMutableRawPointer?
 
-private func gkLocalPlayerPayload() -> GKLocalPlayerPayload {
+func gkLocalPlayerPayload() -> GKLocalPlayerPayload {
     let player = GKLocalPlayer.local
     return GKLocalPlayerPayload(
         isAuthenticated: player.isAuthenticated,

@@ -1,6 +1,6 @@
 [package]
 name = "gamekit-rs"
-version = "0.2.3"
+version = "0.3.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/doom-fish/gamekit-rs"
@@ -26,6 +26,10 @@ include = [
     "LICENSE-*",
 ]
 
+[features]
+default = []
+async = []
+
 [lints.rust]
 
 [lints.clippy]
@@ -41,6 +45,10 @@ crate-type = ["lib"]
 base64 = "0.22"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+doom-fish-utils = { path = "../doom-fish-utils", version = "0.1" }
+
+[dev-dependencies]
+pollster = "0.3"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -50,6 +58,22 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [badges]
 maintenance = { status = "actively-developed" }
+
+[[example]]
+name = "15_async_auth"
+required-features = ["async"]
+
+[[example]]
+name = "16_async_leaderboard"
+required-features = ["async"]
+
+[[example]]
+name = "17_async_achievement"
+required-features = ["async"]
+
+[[example]]
+name = "18_async_saved_game"
+required-features = ["async"]
 
 [profile.release]
 debug = "full"
