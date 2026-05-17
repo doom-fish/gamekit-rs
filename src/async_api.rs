@@ -90,6 +90,8 @@ fn cstr(s: &str, label: &str) -> Result<CString, GameKitError> {
 /// A `usize`-wrapped `*mut c_void` that is `Send`.  Used so that
 /// `AsyncCompletion<MatchPtrSend>` can be polled across thread boundaries.
 struct MatchPtrSend(usize);
+/// SAFETY: The wrapped pointer is a `GKMatch` Obj-C object which the `GameKit`
+/// runtime retains for us; it is safe to move between threads.
 unsafe impl Send for MatchPtrSend {}
 
 // ============================================================================

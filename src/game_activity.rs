@@ -67,6 +67,9 @@ pub struct GameActivity {
     ptr: *mut c_void,
 }
 
+/// SAFETY: `GKGameActivity` is an Obj-C object retained by the `GameKit`
+/// runtime; the `ptr` is not aliased mutably outside of Obj-C and is
+/// safe to transfer across thread boundaries.
 unsafe impl Send for GameActivity {}
 
 #[derive(Debug, Deserialize)]

@@ -4,6 +4,8 @@ use std::ffi::CStr;
 
 use serde::{Deserialize, Serialize};
 
+use doom_fish_utils::panic_safe::catch_user_panic;
+
 use crate::{ffi, private, GameKitError, InviteRecipientResponse, Match, Player};
 
 /// High-level real-time match type.
@@ -368,11 +370,16 @@ unsafe extern "C" fn invite_recipient_response_trampoline(
         return;
     }
 
+    // SAFETY: refcon is a valid `Box<Box<dyn FnMut(Player, InviteRecipientResponse) + Send>>`
+    // created by `find_match_with_recipient_responses` / `find_hosted_players_with_recipient_responses`
+    // and valid for the synchronous duration of the Swift matchmaking call that owns it.
     let handler =
         &mut *(refcon.cast::<Box<dyn FnMut(Player, InviteRecipientResponse) + Send + 'static>>());
     if let Ok(player_str) = CStr::from_ptr(player_json).to_str() {
         if let Ok(player) = serde_json::from_str::<Player>(player_str) {
-            handler(player, InviteRecipientResponse::from_raw(response));
+            catch_user_panic("invite_recipient_response_trampoline", || {
+                handler(player, InviteRecipientResponse::from_raw(response));
+            });
         }
     }
 }

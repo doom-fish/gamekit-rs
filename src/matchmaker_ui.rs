@@ -3,6 +3,8 @@ use std::ffi::CStr;
 
 use serde::Deserialize;
 
+use doom_fish_utils::panic_safe::catch_user_panic;
+
 use crate::{
     ffi, private, GameKitError, GameKitFrameworkError, Match, MatchRequest, Player,
     TurnBasedMatchRequest,
@@ -14,6 +16,8 @@ pub struct Invite {
     ptr: *mut c_void,
 }
 
+/// SAFETY: `GKInvite` is an Obj-C object safely reachable from any thread;
+/// the `ptr` is not aliased mutably outside of the Obj-C runtime.
 unsafe impl Send for Invite {}
 
 /// Matchmaking mode exposed by the Game Center UI.
@@ -47,6 +51,9 @@ pub struct GameCenterControllerDelegate {
     handler_ptr: *mut Box<dyn Fn() + Send + 'static>,
 }
 
+/// SAFETY: holds raw pointers to an Obj-C controller and a heap-allocated
+/// handler; access is serialised through the `GameKit` UI thread and the
+/// thread that drops this guard, never concurrent.
 unsafe impl Send for GameCenterControllerDelegate {}
 
 /// Events emitted by `GKMatchmakerViewControllerDelegate`.
@@ -65,6 +72,9 @@ pub struct MatchmakerViewControllerDelegate {
     handler_ptr: *mut Box<dyn Fn(MatchmakerViewControllerEvent) + Send + 'static>,
 }
 
+/// SAFETY: holds raw pointers to an Obj-C controller and a heap-allocated
+/// handler; access is serialised through the `GameKit` UI thread and the
+/// thread that drops this guard, never concurrent.
 unsafe impl Send for MatchmakerViewControllerDelegate {}
 
 /// `AppKit` Game Center real-time matchmaking UI controller.
@@ -72,6 +82,9 @@ pub struct MatchmakerViewController {
     ptr: *mut c_void,
 }
 
+/// SAFETY: `GKMatchmakerViewController` is an Obj-C object; the `ptr` is not
+/// aliased mutably outside of the Obj-C runtime and is safe to transfer across
+/// thread boundaries.
 unsafe impl Send for MatchmakerViewController {}
 
 /// Events emitted by `GKTurnBasedMatchmakerViewControllerDelegate`.
@@ -87,6 +100,9 @@ pub struct TurnBasedMatchmakerViewControllerDelegate {
     handler_ptr: *mut Box<dyn Fn(TurnBasedMatchmakerViewControllerEvent) + Send + 'static>,
 }
 
+/// SAFETY: holds raw pointers to an Obj-C controller and a heap-allocated
+/// handler; access is serialised through the `GameKit` UI thread and the
+/// thread that drops this guard, never concurrent.
 unsafe impl Send for TurnBasedMatchmakerViewControllerDelegate {}
 
 /// `AppKit` Game Center turn-based matchmaking UI controller.
@@ -94,6 +110,9 @@ pub struct TurnBasedMatchmakerViewController {
     ptr: *mut c_void,
 }
 
+/// SAFETY: `GKTurnBasedMatchmakerViewController` is an Obj-C object; the `ptr`
+/// is not aliased mutably outside of the Obj-C runtime and is safe to transfer
+/// across thread boundaries.
 unsafe impl Send for TurnBasedMatchmakerViewController {}
 
 #[derive(Debug, Deserialize)]
@@ -619,8 +638,10 @@ impl GameCenterViewState {
 }
 
 unsafe extern "C" fn game_center_trampoline(refcon: *mut c_void) {
+    // SAFETY: refcon is a valid `Box<Box<dyn Fn() + Send>>` allocated in the
+    // `GameCenterControllerDelegate` constructor and kept alive by that guard.
     let handler = &*(refcon.cast::<Box<dyn Fn() + Send + 'static>>());
-    handler();
+    catch_user_panic("game_center_trampoline", handler);
 }
 
 unsafe extern "C" fn matchmaker_view_controller_trampoline(
@@ -629,31 +650,23 @@ unsafe extern "C" fn matchmaker_view_controller_trampoline(
     payload_json: *const c_char,
     raw_ptr: *mut c_void,
 ) {
+    // SAFETY: refcon is a valid `Box<Box<dyn Fn(MatchmakerViewControllerEvent) + Send>>`
+    // allocated in `MatchmakerViewControllerDelegate::new` and kept alive by that guard.
     let handler = &*(refcon.cast::<Box<dyn Fn(MatchmakerViewControllerEvent) + Send + 'static>>());
-    match kind {
-        1 => {
-            if let Some(error) = parse_framework_error(payload_json) {
-                handler(MatchmakerViewControllerEvent::Failed { error });
-            }
-        }
-        2 => {
-            if !raw_ptr.is_null() {
-                handler(MatchmakerViewControllerEvent::FoundMatch {
-                    game_match: Match::from_raw(raw_ptr),
-                });
-            }
-        }
-        3 => {
-            if let Some(players) = parse_json::<Vec<Player>>(payload_json) {
-                handler(MatchmakerViewControllerEvent::FoundHostedPlayers { players });
-            }
-        }
-        4 => {
-            if let Some(player) = parse_json::<Player>(payload_json) {
-                handler(MatchmakerViewControllerEvent::HostedPlayerAccepted { player });
-            }
-        }
-        _ => handler(MatchmakerViewControllerEvent::Cancelled),
+    let event = match kind {
+        1 => parse_framework_error(payload_json)
+            .map(|error| MatchmakerViewControllerEvent::Failed { error }),
+        2 if !raw_ptr.is_null() => Some(MatchmakerViewControllerEvent::FoundMatch {
+            game_match: Match::from_raw(raw_ptr),
+        }),
+        3 => parse_json::<Vec<Player>>(payload_json)
+            .map(|players| MatchmakerViewControllerEvent::FoundHostedPlayers { players }),
+        4 => parse_json::<Player>(payload_json)
+            .map(|player| MatchmakerViewControllerEvent::HostedPlayerAccepted { player }),
+        _ => Some(MatchmakerViewControllerEvent::Cancelled),
+    };
+    if let Some(event) = event {
+        catch_user_panic("matchmaker_view_controller_trampoline", || handler(event));
     }
 }
 
@@ -662,15 +675,20 @@ unsafe extern "C" fn turn_based_matchmaker_view_controller_trampoline(
     kind: i32,
     payload_json: *const c_char,
 ) {
+    // SAFETY: refcon is a valid `Box<Box<dyn Fn(TurnBasedMatchmakerViewControllerEvent) + Send>>`
+    // allocated in `TurnBasedMatchmakerViewControllerDelegate::new` and kept alive by that guard.
     let handler =
         &*(refcon.cast::<Box<dyn Fn(TurnBasedMatchmakerViewControllerEvent) + Send + 'static>>());
-    match kind {
-        1 => {
-            if let Some(error) = parse_framework_error(payload_json) {
-                handler(TurnBasedMatchmakerViewControllerEvent::Failed { error });
-            }
-        }
-        _ => handler(TurnBasedMatchmakerViewControllerEvent::Cancelled),
+    let event = match kind {
+        1 => parse_framework_error(payload_json)
+            .map(|error| TurnBasedMatchmakerViewControllerEvent::Failed { error }),
+        _ => Some(TurnBasedMatchmakerViewControllerEvent::Cancelled),
+    };
+    if let Some(event) = event {
+        catch_user_panic(
+            "turn_based_matchmaker_view_controller_trampoline",
+            || handler(event),
+        );
     }
 }
 

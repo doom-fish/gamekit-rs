@@ -3,6 +3,8 @@ use std::ffi::CStr;
 
 use serde::Deserialize;
 
+use doom_fish_utils::panic_safe::catch_user_panic;
+
 use crate::{ffi, private, GameKitError, Player};
 
 /// Mode for sending data through a match.
@@ -53,6 +55,9 @@ pub struct Match {
     pub(crate) ptr: *mut c_void,
 }
 
+/// SAFETY: `GKMatch` is an Objective-C object whose documented thread-safety contract
+/// allows concurrent reads and sends from any thread. The `ptr` field is never
+/// aliased mutably outside of the Obj-C runtime.
 unsafe impl Send for Match {}
 
 impl Match {
@@ -219,6 +224,9 @@ pub struct MatchDelegate {
     handler_ptr: *mut Box<dyn Fn(MatchEvent) + Send + 'static>,
 }
 
+/// SAFETY: `MatchDelegate` owns a raw handler pointer that is never accessed
+/// from multiple threads simultaneously; the match delegate callbacks are
+/// serialised by the `GameKit` runtime.
 unsafe impl Send for MatchDelegate {}
 
 impl Drop for MatchDelegate {
@@ -236,13 +244,18 @@ unsafe extern "C" fn match_data_trampoline(
     data: *const u8,
     len: usize,
 ) {
+    // SAFETY: refcon is a valid `Box<Box<dyn Fn(MatchEvent) + Send>>` allocated in
+    // `Match::set_delegate` and kept alive by `MatchDelegate`.
+    // `data` is a valid buffer of `len` bytes for the duration of this callback.
     let handler = &*(refcon.cast::<Box<dyn Fn(MatchEvent) + Send + 'static>>());
     if let Ok(player_str) = CStr::from_ptr(player_json).to_str() {
         if let Ok(player) = serde_json::from_str::<Player>(player_str) {
             let data_vec = std::slice::from_raw_parts(data, len).to_vec();
-            handler(MatchEvent::ReceivedData {
-                player,
-                data: data_vec,
+            catch_user_panic("match_data_trampoline", || {
+                handler(MatchEvent::ReceivedData {
+                    player,
+                    data: data_vec,
+                });
             });
         }
     }
@@ -253,22 +266,28 @@ unsafe extern "C" fn match_state_trampoline(
     player_json: *const c_char,
     state: i32,
 ) {
+    // SAFETY: refcon is a valid `Box<Box<dyn Fn(MatchEvent) + Send>>` allocated in
+    // `Match::set_delegate` and kept alive by `MatchDelegate`.
     let handler = &*(refcon.cast::<Box<dyn Fn(MatchEvent) + Send + 'static>>());
     if let Ok(player_str) = CStr::from_ptr(player_json).to_str() {
         if let Ok(player) = serde_json::from_str::<Player>(player_str) {
-            handler(MatchEvent::ConnectionStateChanged {
-                player,
-                state: match state {
-                    1 => ConnectionState::Connected,
-                    2 => ConnectionState::Disconnected,
-                    _ => ConnectionState::Unknown,
-                },
+            catch_user_panic("match_state_trampoline", || {
+                handler(MatchEvent::ConnectionStateChanged {
+                    player,
+                    state: match state {
+                        1 => ConnectionState::Connected,
+                        2 => ConnectionState::Disconnected,
+                        _ => ConnectionState::Unknown,
+                    },
+                });
             });
         }
     }
 }
 
 unsafe extern "C" fn match_failure_trampoline(refcon: *mut c_void, error_json: *const c_char) {
+    // SAFETY: refcon is a valid `Box<Box<dyn Fn(MatchEvent) + Send>>` allocated in
+    // `Match::set_delegate` and kept alive by `MatchDelegate`.
     let handler = &*(refcon.cast::<Box<dyn Fn(MatchEvent) + Send + 'static>>());
     let error = if error_json.is_null() {
         None
@@ -277,7 +296,9 @@ unsafe extern "C" fn match_failure_trampoline(refcon: *mut c_void, error_json: *
     } else {
         None
     };
-    handler(MatchEvent::Failed { error });
+    catch_user_panic("match_failure_trampoline", || {
+        handler(MatchEvent::Failed { error });
+    });
 }
 
 const fn send_mode_to_i32(mode: SendDataMode) -> i32 {

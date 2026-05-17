@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.3.2] - 2026-05-19
+
+### Fixed
+- **Panic safety (UB fix)**: all 9 `extern "C"` trampolines that invoke user
+  closures now wrap the call in `doom_fish_utils::panic_safe::catch_user_panic`.
+  Previously a panic in a user-supplied handler would unwind through the
+  Swift/C ABI boundary — undefined behaviour.  Affected trampolines:
+  `auth_trampoline`, `match_data_trampoline`, `match_state_trampoline`,
+  `match_failure_trampoline`, `game_center_trampoline`,
+  `matchmaker_view_controller_trampoline`,
+  `turn_based_matchmaker_view_controller_trampoline`,
+  `invite_recipient_response_trampoline`,
+  `local_player_listener_trampoline`.
+- Added `// SAFETY:` justification comments to all 12 `unsafe impl Send`
+  declarations (`MatchPtrSend`, `GameActivity`, `LocalPlayerListener`,
+  `AuthObserver`, `Match`, `MatchDelegate`, `Invite`,
+  `GameCenterControllerDelegate`, `MatchmakerViewControllerDelegate`,
+  `MatchmakerViewController`, `TurnBasedMatchmakerViewControllerDelegate`,
+  `TurnBasedMatchmakerViewController`).
+- Widened `doom-fish-utils` version constraint from `"0.1"` to `">=0.1, <0.3"`
+  to allow the next minor release without a breaking bump.
+
 ## [0.3.1] - 2026-05-19
 
 ### Changed

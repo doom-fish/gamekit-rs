@@ -3,6 +3,8 @@ use std::ffi::CStr;
 
 use serde::Deserialize;
 
+use doom_fish_utils::panic_safe::catch_user_panic;
+
 use crate::{
     ffi, private, GameActivitySnapshot, GameKitError, Invite, LocalPlayer, Player, SavedGame,
     TurnBasedExchange, TurnBasedExchangeReply, TurnBasedMatch,
@@ -72,6 +74,9 @@ pub struct LocalPlayerListener {
     handler_ptr: *mut Box<dyn Fn(LocalPlayerEvent) -> bool + Send + 'static>,
 }
 
+/// SAFETY: `LocalPlayerListener` holds raw pointers to an Obj-C listener
+/// object and a heap-allocated handler. Both are accessed only on the
+/// `GameKit` callback thread or the thread that drops the guard, never concurrently.
 unsafe impl Send for LocalPlayerListener {}
 
 #[derive(Debug, Deserialize)]
@@ -185,6 +190,8 @@ unsafe extern "C" fn local_player_listener_trampoline(
     payload_json: *const c_char,
     raw_ptr: *mut c_void,
 ) -> i32 {
+    // SAFETY: refcon is a valid `Box<Box<dyn Fn(LocalPlayerEvent) -> bool + Send>>` allocated
+    // in `LocalPlayer::register_listener` and kept alive by `LocalPlayerListener`.
     let handler = &*(refcon.cast::<Box<dyn Fn(LocalPlayerEvent) -> bool + Send + 'static>>());
 
     let Some(payload) = parse_event_payload(payload_json) else {
@@ -194,7 +201,11 @@ unsafe extern "C" fn local_player_listener_trampoline(
         return 0;
     };
 
-    i32::from(handler(event))
+    let mut result = 0i32;
+    catch_user_panic("local_player_listener_trampoline", || {
+        result = i32::from(handler(event));
+    });
+    result
 }
 
 unsafe fn event_from_payload(

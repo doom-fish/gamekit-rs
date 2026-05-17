@@ -3,6 +3,8 @@ use std::ffi::CStr;
 
 use serde::Deserialize;
 
+use doom_fish_utils::panic_safe::catch_user_panic;
+
 use crate::{ffi, private, GameKitError, Player};
 
 /// The exported authentication-change notification name.
@@ -210,6 +212,9 @@ pub struct AuthObserver {
     handler_ptr: *mut Box<dyn Fn(AuthEvent) + Send + 'static>,
 }
 
+/// SAFETY: `AuthObserver` holds a raw pointer to a heap-allocated handler box.
+/// The handler is `Send`, and the pointer is only accessed from the `GameKit`
+/// callback thread or the thread that drops the observer, never concurrently.
 unsafe impl Send for AuthObserver {}
 
 impl AuthObserver {
@@ -235,10 +240,12 @@ impl Drop for AuthObserver {
 }
 
 unsafe extern "C" fn auth_trampoline(refcon: *mut c_void, event_json: *const c_char) {
+    // SAFETY: refcon is a valid `Box<Box<dyn Fn(AuthEvent) + Send>>` created in
+    // `AuthObserver::new` and kept alive for the lifetime of the observer.
     let handler = &*(refcon.cast::<Box<dyn Fn(AuthEvent) + Send + 'static>>());
     if let Ok(event_str) = CStr::from_ptr(event_json).to_str() {
         if let Ok(event) = serde_json::from_str::<AuthEvent>(event_str) {
-            handler(event);
+            catch_user_panic("auth_trampoline", || handler(event));
         }
     }
 }
