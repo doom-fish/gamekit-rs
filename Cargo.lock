@@ -14,7 +14,7 @@ version = "0.1.0"
 
 [[package]]
 name = "gamekit-rs"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "base64",
  "doom-fish-utils",
