@@ -271,6 +271,7 @@ final class GKLocalPlayerListenerImpl: NSObject, GKLocalPlayerListener {
         )
     }
 
+    #if GAMEKIT_HAS_MACOS26_SDK
     @available(macOS 26.0, *)
     func player(
         _ player: GKPlayer,
@@ -295,6 +296,7 @@ final class GKLocalPlayerListenerImpl: NSObject, GKLocalPlayerListener {
         ) != 0
         completionHandler(handled)
     }
+    #endif
 }
 
 @_cdecl("gk_local_player_listener_register")

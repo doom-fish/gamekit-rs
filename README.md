@@ -25,7 +25,7 @@ Safe Rust bindings for Apple's `GameKit` framework on macOS.
 
 ### Async API (feature = `"async"`)
 
-Enable the `async` feature to get executor-agnostic `Future` wrappers for 9 GameKit completion-handler families:
+Enable the `async` feature to get executor-agnostic `Future` wrappers for 9 `GameKit` completion-handler families:
 
 ```toml
 [dependencies]
@@ -44,8 +44,8 @@ gamekit = { version = "0.3", features = ["async"] }
 #[cfg(feature = "async")]
 async fn example() -> Result<(), Box<dyn std::error::Error>> {
     use gamekit::async_api::AsyncLocalPlayer;
-    let player = AsyncLocalPlayer::new().authenticate().await?;
-    println!("authenticated as {}", player.display_name.as_deref().unwrap_or("?"));
+    let player = AsyncLocalPlayer::authenticate().await?;
+    println!("authenticated as {}", player.player.display_name);
     Ok(())
 }
 ```

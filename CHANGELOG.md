@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.3.1] - 2026-05-19
+
+### Changed
+- Added `#if GAMEKIT_HAS_MACOS26_SDK` compile-time guard around the
+  `wantsToPlay(_:completionHandler:)` method in `GKLocalPlayerListenerImpl`
+  (`LocalPlayerListener.swift`). The method references `GKGameActivity` and
+  `gkGameActivityPayload`, both of which are only available in the macOS 26
+  SDK; the previous `@available(macOS 26.0, *)` runtime attribute alone was
+  not sufficient to prevent compilation failures on older SDKs (macos-15 /
+  Xcode 16).
+- Fixed a stale README doctest: `AsyncLocalPlayer::new().authenticate()` →
+  `AsyncLocalPlayer::authenticate()` (the method is a static, not an instance
+  call), and corrected the accessed field to `player.player.display_name`.
+- Fixed pre-existing `doc_markdown` Clippy warning (unbackticked `GameKit`)
+  in `README.md` and `tests/async_api_tests.rs`.
+- Fixed pre-existing `items_after_statements` Clippy warnings in
+  `tests/async_api_tests.rs` by moving inner `struct`/`impl` blocks before
+  the `let` bindings in each test function.
+
 ## [0.3.0] - 2026-05-18
 
 ### Added
