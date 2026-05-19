@@ -1,6 +1,6 @@
 # gamekit-rs coverage audit (vs MacOSX26.2.sdk)
 
-> Scope: top-level macOS-available classes, protocols, enums, and exported constants in `GameKit.framework`. Method-level members, category-only extensions, deprecated typedef aliases (for example `GKInviteeResponse`), and macOS-unavailable symbols (`GKPeerPicker*`, `GKVoiceChatService`, `GKVoiceChatServiceError`, `GKSessionError`, `GKGameSessionSharingViewController*`) are excluded from the counts. Deprecated symbols remain listed as **EXEMPT**. If Apple left a symbol non-deprecated even though it mainly serves a deprecated type (for example `GKGameCenterControllerDelegate`), it remains a **GAP**.
+> Scope: top-level macOS-available classes, protocols, enums, and exported constants in `GameKit.framework`. Method-level members, category-only extensions, and deprecated typedef aliases (for example `GKInviteeResponse`) are excluded from the counts. Legacy non-macOS symbols surfaced by the umbrella header (`GKPeerPicker*`, `GKVoiceChatService`, `GKVoiceChatServiceError`, `GKSessionError`, `GKGameSessionSharingViewController*`) are also excluded from the counts; deprecated ones are documented below as out-of-scope **EXEMPT** items. If Apple left a symbol non-deprecated even though it mainly serves a deprecated type (for example `GKGameCenterControllerDelegate`), it remains a **GAP**.
 
 SDK_PUBLIC_SYMBOLS: 101
 VERIFIED: 63
@@ -119,3 +119,13 @@ None.
 | GKVoiceChatClient | protocol | `GKPublicProtocols.h` | Legacy voice-chat client protocol. | `API_DEPRECATED_WITH_REPLACEMENT(... macos(10.6,10.8))` |
 | GKVoiceChatPlayerState | enum | `GKVoiceChat.h` | No longer supported. | `API_DEPRECATED(... macos(10.8,15.0))` |
 | GKVoiceChatServiceErrorDomain | constant | `GKPublicConstants.h` | Legacy VoiceChatService error domain. | `API_DEPRECATED(... macos(10.10,15.4))` |
+
+### Out-of-scope deprecated symbols (excluded from counts)
+These legacy UI symbols are visible from the umbrella headers but are not macOS-available, so they do not change the macOS coverage totals above.
+
+| Symbol | Kind | Header | Reason | SDK attribute |
+| --- | --- | --- | --- | --- |
+| GKGameSessionSharingViewController | class | `GKGameSessionSharingViewController.h` | Deprecated `GKGameSession` sharing UI; the header only exposes it on tvOS, so it is intentionally not wrapped for macOS. | `API_DEPRECATED(... tvos(10.0,12.0))` + `#if TARGET_OS_TV` |
+| GKGameSessionSharingViewControllerDelegate | protocol | `GKGameSessionSharingViewController.h` | Delegate for the deprecated tvOS-only `GKGameSession` sharing UI; intentionally not wrapped for macOS. | `API_DEPRECATED(... tvos(10.0,12.0))` + `#if TARGET_OS_TV` |
+| GKPeerPickerController | class | `GKPeerPickerController.h` | Deprecated legacy `GKSession` peer-picker UI; the header is iOS-only and unavailable on macOS, so it is intentionally not wrapped. | `API_DEPRECATED(... ios(3.0,7.0))` + `#if !TARGET_OS_OSX && !TARGET_OS_TV && !TARGET_OS_WATCH` |
+| GKPeerPickerControllerDelegate | protocol | `GKPeerPickerController.h` | Delegate for the deprecated legacy `GKSession` peer-picker UI; iOS-only and intentionally not wrapped for macOS. | `API_DEPRECATED(... ios(3.0,7.0))` + `#if !TARGET_OS_OSX && !TARGET_OS_TV && !TARGET_OS_WATCH` |

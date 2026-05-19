@@ -46,28 +46,52 @@ fn main() {
     }
 
     let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
-    let swift_triple = match target_arch.as_str() {
-        "x86_64" => "x86_64-apple-macosx",
-        "aarch64" => "arm64-apple-macosx",
-        other => panic!("gamekit-rs: unsupported target arch '{other}'"),
-    };
 
     let sdk_major = detect_sdk_major_version();
+    let has_macos26_sdk = sdk_major.is_some_and(|major| major >= 26);
+
+    // When the SDK is macOS 26+, GKLocalPlayerListener (available since macOS 10.10) was
+    // updated to inherit GKGameActivityListener (available since macOS 26.0) without a
+    // deployment-target guard.  Swift's conformance checker then requires every optional
+    // method implementation for that sub-protocol to be available since the conformance's
+    // deployment target (normally macOS 12.0).  But GKGameActivity itself is macOS 26.0+,
+    // creating an unsatisfiable constraint.
+    //
+    // Resolved by overriding the Swift compiler's deployment target to 26.0 (via
+    // -Xswiftc -target) when building against the macOS 26+ SDK.  SPM ignores the version
+    // component in --triple and always applies its own platform minimum (macOS 12.0 from
+    // Package.swift); the -Xswiftc flag bypasses that. The Rust linker flag
+    // -mmacosx-version-min=12.0 (set below) still governs the final binary's minimum OS,
+    // so the library remains loadable on macOS 12+.  All macOS-26-specific API call sites
+    // are behind @available(macOS 26.0, *) guards and are never reached on older systems.
+    let swift_arch = match target_arch.as_str() {
+        "x86_64" => "x86_64",
+        "aarch64" => "arm64",
+        other => panic!("gamekit-rs: unsupported target arch '{other}'"),
+    };
+    let swift_triple = format!("{swift_arch}-apple-macosx");
+
     let mut swift_args = vec![
         "build".to_owned(),
         "-c".to_owned(),
         "release".to_owned(),
         "--triple".to_owned(),
-        swift_triple.to_owned(),
+        swift_triple,
         "--package-path".to_owned(),
         swift_dir.to_owned(),
         "--scratch-path".to_owned(),
         swift_build_dir.clone(),
     ];
 
-    if sdk_major.is_some_and(|major| major >= 26) {
+    if has_macos26_sdk {
         swift_args.push("-Xswiftc".to_owned());
         swift_args.push("-DGAMEKIT_HAS_MACOS26_SDK".to_owned());
+        // Override the deployment target that SPM infers from Package.swift (macOS 12.0) so
+        // that @available(macOS 26.0, *) protocol witnesses are accepted by the compiler.
+        swift_args.push("-Xswiftc".to_owned());
+        swift_args.push("-target".to_owned());
+        swift_args.push("-Xswiftc".to_owned());
+        swift_args.push(format!("{swift_arch}-apple-macosx26.0"));
     }
 
     let output = Command::new("swift")

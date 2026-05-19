@@ -271,12 +271,19 @@ final class GKLocalPlayerListenerImpl: NSObject, GKLocalPlayerListener {
         )
     }
 
-    #if GAMEKIT_HAS_MACOS26_SDK
-    @available(macOS 26.0, *)
+}
+
+#if GAMEKIT_HAS_MACOS26_SDK
+// GKGameActivityListener (API_AVAILABLE(macOS 26.0)) was folded into GKLocalPlayerListener
+// in the macOS 26 SDK without a deployment-target guard.  With the Swift deployment target
+// aligned to macOS 26.0 in build.rs (when SDK >= 26), the @available(macOS 26.0, *)
+// annotation satisfies the conformance checker and allows GKGameActivity in the signature.
+@available(macOS 26.0, *)
+extension GKLocalPlayerListenerImpl {
     func player(
         _ player: GKPlayer,
         wantsToPlay activity: GKGameActivity,
-        completionHandler: @escaping (Bool) -> Void
+        completionHandler: @escaping @Sendable (Bool) -> Void
     ) {
         let handled = emit(
             GKLocalPlayerEventPayload(
@@ -296,8 +303,8 @@ final class GKLocalPlayerListenerImpl: NSObject, GKLocalPlayerListener {
         ) != 0
         completionHandler(handled)
     }
-    #endif
 }
+#endif
 
 @_cdecl("gk_local_player_listener_register")
 public func gk_local_player_listener_register(

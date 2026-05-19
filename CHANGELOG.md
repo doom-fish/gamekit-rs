@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.5] - 2026-05-19
+
+### Changed
+- Documented `GKGameSessionSharingViewController`, `GKGameSessionSharingViewControllerDelegate`, `GKPeerPickerController`, and `GKPeerPickerControllerDelegate` as deprecated legacy UI symbols intentionally left unwrapped because the GameKit headers make them tvOS/iOS-only and unavailable on macOS.
+- Fixed the `GKLocalPlayerListener` game-activity witness so the Swift bridge builds again against the macOS 26 SDK.
+- Bumped the crate version to `0.8.5`.
+
 ## [0.3.2] - 2026-05-19
 
 ### Fixed
