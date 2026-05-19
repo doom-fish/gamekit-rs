@@ -1,6 +1,6 @@
 [package]
 name = "gamekit-rs"
-version = "0.8.5"
+version = "0.8.6"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/doom-fish/gamekit-rs"
@@ -9,7 +9,7 @@ description = "Safe Rust bindings for Apple's GameKit framework — Game Center,
 authors = ["Per Johansson <per@doom.fish>"]
 keywords = ["gamekit", "gamecenter", "macos", "leaderboard", "apple"]
 categories = ["api-bindings", "os::macos-apis"]
-rust-version = "1.70"
+rust-version = "1.76"
 readme = "README.md"
 build = "build.rs"
 include = [
