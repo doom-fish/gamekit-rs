@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.9] - 2026-05-20
+
+- Phase 32 completeness + async sweep.
+- Added `ChallengeDefinition::load_image_data()` plus async wrappers for achievement descriptions/reset and leaderboard-set / challenge-definition image loading.
+- Refreshed the coverage docs against `MacOSX26.5.sdk`.
+
 ## [0.8.8] - 2026-05-20
 
 - Clippy hygiene sweep: cleared all `-D warnings` lints across the crate. No public API change.

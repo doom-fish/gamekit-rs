@@ -2,7 +2,7 @@
 
 Safe Rust bindings for Apple's `GameKit` framework on macOS.
 
-## What is covered in v0.3.0
+## What is covered in v0.8.9
 
 `gamekit-rs` now reaches 100% of the audited top-level macOS-available `GameKit` surface in [`COVERAGE_AUDIT.md`](COVERAGE_AUDIT.md) and exposes logical modules for:
 
@@ -25,11 +25,11 @@ Safe Rust bindings for Apple's `GameKit` framework on macOS.
 
 ### Async API (feature = `"async"`)
 
-Enable the `async` feature to get executor-agnostic `Future` wrappers for 9 `GameKit` completion-handler families:
+Enable the `async` feature to get executor-agnostic `Future` wrappers for the currently wrapped `GameKit` completion-handler families:
 
 ```toml
 [dependencies]
-gamekit = { version = "0.3", features = ["async"] }
+gamekit = { version = "0.8.9", features = ["async"] }
 ```
 
 | Wrapper | Futures |
@@ -37,7 +37,9 @@ gamekit = { version = "0.3", features = ["async"] }
 | `AsyncLocalPlayer` | `authenticate`, `friends_authorization_status` |
 | `AsyncMatchmaker` | `find_match`, `find_players` |
 | `AsyncLeaderboard` | `load_leaderboards`, `load_entries` |
-| `AsyncAchievement` | `load_achievements`, `report_achievement` |
+| `AsyncAchievement` | `load_achievements`, `load_descriptions`, `report_achievement`, `reset` |
+| `AsyncLeaderboardSet` | `load_leaderboards`, `load_image_data` |
+| `AsyncChallengeDefinition` | `load_image_data` |
 | `AsyncSavedGame` | `fetch_all_saved_games`, `load_data`, `save_game` |
 
 ```rust,no_run

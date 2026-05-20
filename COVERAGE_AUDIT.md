@@ -1,4 +1,4 @@
-# gamekit-rs coverage audit (vs MacOSX26.2.sdk)
+# gamekit-rs coverage audit (vs MacOSX26.5.sdk)
 
 > Scope: top-level macOS-available classes, protocols, enums, and exported constants in `GameKit.framework`. Method-level members, category-only extensions, and deprecated typedef aliases (for example `GKInviteeResponse`) are excluded from the counts. Legacy non-macOS symbols surfaced by the umbrella header (`GKPeerPicker*`, `GKVoiceChatService`, `GKVoiceChatServiceError`, `GKSessionError`, `GKGameSessionSharingViewController*`) are also excluded from the counts; deprecated ones are documented below as out-of-scope **EXEMPT** items. If Apple left a symbol non-deprecated even though it mainly serves a deprecated type (for example `GKGameCenterControllerDelegate`), it remains a **GAP**.
 
@@ -14,9 +14,9 @@ COVERAGE_PCT: 100.0%
 | GKAccessPoint | class | `GKAccessPoint.h` | `AccessPoint` |
 | GKAccessPointLocation | enum | `GKAccessPoint.h` | `AccessPointLocation` |
 | GKAchievement | class | `GKAchievement.h` | `Achievement` |
-| GKAchievementDescription | class | `GKAchievementDescription.h` | `AchievementDescription` |
+| GKAchievementDescription | class | `GKAchievementDescription.h` | `AchievementDescription`, `Achievement::load_descriptions`, `AsyncAchievement::load_descriptions` |
 | GKBasePlayer | class | `GKBasePlayer.h` | `BasePlayer` |
-| GKChallengeDefinition | class | `GKChallengeDefinition.h` | `ChallengeDefinition` |
+| GKChallengeDefinition | class | `GKChallengeDefinition.h` | `ChallengeDefinition`, `ChallengeDefinition::load_image_data`, `AsyncChallengeDefinition::load_image_data` |
 | GKDialogController | class | `GKDialogController.h` | `DialogController` |
 | GKErrorCode | enum | `GKError.h` | `ErrorCode`, `GameKitFrameworkError::error_code` |
 | GKErrorDomain | constant | `GKError.h` | `ERROR_DOMAIN` |
@@ -36,7 +36,7 @@ COVERAGE_PCT: 100.0%
 | GKLeaderboardEntry | class | `GKLeaderboardEntry.h` | `LeaderboardEntry`, `Leaderboard::load_entries*` |
 | GKLeaderboardPlayerScope | enum | `GKLeaderboard.h` | `PlayerScope` |
 | GKLeaderboardScore | class | `GKLeaderboardScore.h` | `Score` (turn-based `end_match_in_turn`) |
-| GKLeaderboardSet | class | `GKLeaderboardSet.h` | `LeaderboardSet`, `LeaderboardSet::load_*` |
+| GKLeaderboardSet | class | `GKLeaderboardSet.h` | `LeaderboardSet`, `LeaderboardSet::load_*`, `AsyncLeaderboardSet::{load_leaderboards, load_image_data}` |
 | GKLeaderboardTimeScope | enum | `GKLeaderboard.h` | `TimeScope` |
 | GKLeaderboardType | enum | `GKLeaderboard.h` | `LeaderboardType` |
 | GKLocalPlayer | class | `GKLocalPlayer.h` | `LocalPlayer`, `AuthObserver` |

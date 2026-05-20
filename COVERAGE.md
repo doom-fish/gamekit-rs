@@ -1,6 +1,6 @@
 # GameKit coverage audit
 
-`gamekit-rs` v0.2.3 targets the GameKit APIs that are practical to expose from a safe Rust surface on macOS and now reaches 100% of the audited top-level macOS-available surface tracked in [`COVERAGE_AUDIT.md`](COVERAGE_AUDIT.md). The crate still mirrors the `screencapturekit-rs` bridge layout:
+`gamekit-rs` v0.8.9 targets the GameKit APIs that are practical to expose from a safe Rust surface on macOS and now reaches 100% of the audited top-level macOS-available surface tracked in [`COVERAGE_AUDIT.md`](COVERAGE_AUDIT.md). The crate still mirrors the `screencapturekit-rs` bridge layout:
 
 - one Swift bridge file per logical area
 - `@_cdecl` C-callable entry points
@@ -10,16 +10,16 @@
 
 ## Status by logical area
 
-| Area | Apple surface audited | Rust surface in v0.2.3 | Status |
+| Area | Apple surface audited | Rust surface in v0.8.9 | Status |
 | --- | --- | --- | --- |
 | Error | `GKErrorCode`, `GKErrorDomain` | `ErrorCode`, `ERROR_DOMAIN`, `GameKitFrameworkError::error_code` | Covered |
 | LocalPlayer | `GKLocalPlayer` snapshot, auth handler, recent players, challengeable friends, identity verification signature, friends authorization, friends lookup, friend request presentation, auth-change notification constant | `LocalPlayer`, `AuthObserver`, `FriendsAuthorizationStatus`, `IdentityVerificationSignature`, `PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME` | Broad coverage of local-player data and exported constants |
 | LocalPlayerListener | `GKLocalPlayerListener`, `GKInviteEventListener`, `GKTurnBasedEventListener`, `GKSavedGameListener`, `GKGameActivityListener` | `LocalPlayer::register_listener`, `LocalPlayerListener`, `LocalPlayerEvent` | Broad callback coverage for invite, turn-based, saved-game, and game-activity events |
 | Player | `GKBasePlayer`, `GKPlayer`, `GKPhotoSize`, player notification constants | `BasePlayer`, `Player`, `PhotoSize`, `PLAYER_DID_CHANGE_NOTIFICATION_NAME`, `PLAYER_ID_NO_LONGER_AVAILABLE` | Covered for identity snapshots and exported constants; photo-loading members remain intentionally unwrapped |
 | Leaderboard | `GKLeaderboard` load, recurring metadata, score submission | `Leaderboard`, `LeaderboardType`, `submit_score`, `submit_local_score`, `load_previous_occurrence` | Broad coverage of load + submit flows |
-| LeaderboardSet | `GKLeaderboardSet` discovery, leaderboard loading, image loading | `LeaderboardSet`, `LeaderboardSet::load_*` | Covered |
+| LeaderboardSet | `GKLeaderboardSet` discovery, leaderboard loading, image loading | `LeaderboardSet`, `LeaderboardSet::load_*`, `AsyncLeaderboardSet::{load_leaderboards, load_image_data}` | Covered |
 | LeaderboardEntry | `GKLeaderboard.Entry` rank/score/date/player snapshots and load APIs | `LeaderboardEntry`, `LoadEntriesResult`, `load_entries`, `load_entries_for_players` | Covered |
-| Achievement | `GKAchievement`, `GKAchievementDescription`, reset/report/load | `Achievement`, `AchievementDescription`, `load`, `load_descriptions`, `report`, `report_all`, `reset` | Core coverage; image loading / rarity metadata are not wrapped |
+| Achievement | `GKAchievement`, `GKAchievementDescription`, reset/report/load | `Achievement`, `AchievementDescription`, `load`, `load_descriptions`, `report`, `report_all`, `reset`, `AsyncAchievement::{load_achievements, load_descriptions, report_achievement, reset}` | Core coverage; image loading / rarity metadata are not wrapped |
 | Match | `GKMatch` players, connection state, data send, callbacks, rematch, host selection | `Match`, `MatchEvent`, `MatchDelegate`, `ConnectionState`, `SendDataMode` | Covered for the primary live-match surface |
 | TurnBased | `GKTurnBasedMatch`, participants, exchanges, reminders, merged saves, quit/end flows, timeout constants | `TurnBasedMatch`, `TurnBasedParticipant`, `TurnBasedExchange`, `TurnBasedExchangeReply`, related enums/request types, `TURN_*`, `EXCHANGE_*` constants | Broad coverage |
 | RealTime | `GKMatchmaker`, `GKInviteRecipientResponse`, `GKMatchedPlayers` | `Matchmaker`, `MatchRequest`, `MatchType`, `InviteRecipientResponse`, `MatchedPlayers` | Covered for the primary programmatic matchmaking surface; nearby-player browsing, queue activity, and invite cancellation remain member-level omissions |
@@ -27,7 +27,7 @@
 | GameActivity | `GKGameActivity`, `GKGameActivityDefinition`, play style/state metadata, definition lookup, activity lifecycle, image loading | `GameActivity`, `GameActivityDefinition`, `GameActivitySnapshot`, `GameActivityPlayStyle`, `GameActivityState` | SDK/OS-gated: available only when compiled with a macOS 26 SDK and run on macOS 26+ |
 | Notification | `GKNotificationBanner` | `NotificationBanner` | Covered via deprecated Apple API |
 | AccessPoint | `GKAccessPoint` snapshot, activation, location, trigger, trigger(state:)` | `AccessPoint`, `AccessPointSnapshot`, `AccessPointLocation`, `AccessPointState` | Core coverage; newer state-trigger variants are not wrapped |
-| ChallengeDefinition | `GKChallengeDefinition` load + active-challenge query | `ChallengeDefinition`, `ChallengeDurationOption` | SDK/OS-gated: available only when compiled with a macOS 26 SDK and run on macOS 26+; image loading not wrapped |
+| ChallengeDefinition | `GKChallengeDefinition` load + active-challenge query | `ChallengeDefinition`, `ChallengeDefinition::load_image_data`, `ChallengeDurationOption`, `AsyncChallengeDefinition::load_image_data` | SDK/OS-gated: available only when compiled with a macOS 26 SDK and run on macOS 26+ |
 | Score | legacy `GKScore` reporting | `Score`, `Score::new_local`, `Score::for_player_game_id`, `Score::report_all` | Covered via deprecated Apple API |
 | Save | `GKSavedGame` list, load data, save, delete, resolve conflicts | `SavedGame` | Broad coverage; saved-game listener callbacks are exposed through `LocalPlayerListener` |
 

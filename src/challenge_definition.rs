@@ -4,6 +4,12 @@ use serde::Deserialize;
 
 use crate::{ffi, private, GameKitError};
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BinaryPayload {
+    data_base64: String,
+}
+
 /// A duration option attached to a challenge definition.
 #[allow(clippy::unsafe_derive_deserialize)]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -63,6 +69,29 @@ impl ChallengeDefinition {
                 return Err(private::error_from_status(status, out_error));
             }
             Ok(out_active)
+        }
+    }
+
+    /// Loads the challenge definition image as TIFF bytes.
+    pub fn load_image_data(&self) -> Result<Vec<u8>, GameKitError> {
+        let identifier =
+            private::cstring_from_str(&self.identifier, "challenge definition identifier")?;
+
+        unsafe {
+            let mut out_json: *mut c_char = std::ptr::null_mut();
+            let mut out_error: *mut c_char = std::ptr::null_mut();
+            let status = ffi::gk_challenge_definition_load_image_json(
+                identifier.as_ptr(),
+                &mut out_json,
+                &mut out_error,
+            );
+            if status != ffi::status::OK {
+                return Err(private::error_from_status(status, out_error));
+            }
+
+            let payload: BinaryPayload =
+                private::parse_json_ptr(out_json, "challenge definition image")?;
+            private::decode_base64(&payload.data_base64, "challenge definition image")
         }
     }
 }

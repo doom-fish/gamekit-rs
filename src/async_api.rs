@@ -10,7 +10,9 @@
 //! | [`AsyncLocalPlayer`] | Authenticate and query friends-authorization |
 //! | [`AsyncMatchmaker`] | Find real-time matches and hosted players |
 //! | [`AsyncLeaderboard`] | Load leaderboards and their entries |
-//! | [`AsyncAchievement`] | Load and report achievements |
+//! | [`AsyncAchievement`] | Load, describe, report, and reset achievements |
+//! | [`AsyncLeaderboardSet`] | Load leaderboard-set members and images |
+//! | [`AsyncChallengeDefinition`] | Load challenge-definition images |
 //! | [`AsyncSavedGame`] | Fetch, load, and save game data |
 //!
 //! ## Runtime-agnostic design
@@ -49,11 +51,13 @@ use std::task::{Context, Poll};
 
 use doom_fish_utils::completion::{error_from_cstr, AsyncCompletion, AsyncCompletionFuture};
 
-use crate::achievement::{Achievement, AchievementPayload};
+use crate::achievement::{Achievement, AchievementDescription, AchievementPayload};
+use crate::challenge_definition::ChallengeDefinition;
 use crate::error::GameKitError;
 use crate::ffi::{self, AsyncJsonCb, AsyncMatchCb};
 use crate::leaderboard::{Leaderboard, LeaderboardPayload, PlayerScope, TimeScope};
 use crate::leaderboard_entry::{LeaderboardEntry, LoadEntriesResult};
+use crate::leaderboard_set::LeaderboardSet;
 use crate::local_player::{FriendsAuthorizationStatus, LocalPlayer};
 use crate::player::Player;
 use crate::private;
@@ -81,6 +85,40 @@ fn parse_json<T: serde::de::DeserializeOwned>(
 /// Build a nul-terminated `CString` from a `&str`, mapping errors to `GameKitError`.
 fn cstr(s: &str, label: &str) -> Result<CString, GameKitError> {
     CString::new(s).map_err(|_| GameKitError::Unknown(format!("nul byte in {label}")))
+}
+
+struct ThreadedResultFuture<T> {
+    inner: AsyncCompletionFuture<Result<T, GameKitError>>,
+}
+
+impl<T> std::fmt::Debug for ThreadedResultFuture<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ThreadedResultFuture")
+            .finish_non_exhaustive()
+    }
+}
+
+impl<T> Future for ThreadedResultFuture<T> {
+    type Output = Result<T, GameKitError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.inner)
+            .poll(cx)
+            .map(|result| result.unwrap_or_else(|message| Err(GameKitError::Unknown(message))))
+    }
+}
+
+fn spawn_threaded_future<T, F>(work: F) -> ThreadedResultFuture<T>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, GameKitError> + Send + 'static,
+{
+    let (future, ctx) = AsyncCompletion::<Result<T, GameKitError>>::create();
+    let ctx = ctx as usize;
+    std::thread::spawn(move || unsafe {
+        AsyncCompletion::complete_ok(ctx as *mut c_void, work());
+    });
+    ThreadedResultFuture { inner: future }
 }
 
 // ============================================================================
@@ -557,6 +595,46 @@ impl Future for ReportAchievementFuture {
     }
 }
 
+/// Future produced by [`AsyncAchievement::load_descriptions`].
+pub struct LoadAchievementDescriptionsFuture {
+    inner: ThreadedResultFuture<Vec<AchievementDescription>>,
+}
+
+impl std::fmt::Debug for LoadAchievementDescriptionsFuture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LoadAchievementDescriptionsFuture")
+            .finish_non_exhaustive()
+    }
+}
+
+impl Future for LoadAchievementDescriptionsFuture {
+    type Output = Result<Vec<AchievementDescription>, GameKitError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.inner).poll(cx)
+    }
+}
+
+/// Future produced by [`AsyncAchievement::reset`].
+pub struct ResetAchievementsFuture {
+    inner: ThreadedResultFuture<()>,
+}
+
+impl std::fmt::Debug for ResetAchievementsFuture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResetAchievementsFuture")
+            .finish_non_exhaustive()
+    }
+}
+
+impl Future for ResetAchievementsFuture {
+    type Output = Result<(), GameKitError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.inner).poll(cx)
+    }
+}
+
 /// Async wrappers for achievement operations.
 #[derive(Debug, Clone, Copy)]
 pub struct AsyncAchievement;
@@ -602,6 +680,22 @@ impl AsyncAchievement {
             ffi::gk_achievement_report_async(json.as_ptr(), json_cb as AsyncJsonCb, ctx);
         };
         Ok(ReportAchievementFuture { inner: future })
+    }
+
+    /// Load all achievement descriptions for the local game asynchronously.
+    #[must_use]
+    pub fn load_descriptions() -> LoadAchievementDescriptionsFuture {
+        LoadAchievementDescriptionsFuture {
+            inner: spawn_threaded_future(AchievementDescription::load),
+        }
+    }
+
+    /// Reset all achievements for the local player asynchronously.
+    #[must_use]
+    pub fn reset() -> ResetAchievementsFuture {
+        ResetAchievementsFuture {
+            inner: spawn_threaded_future(Achievement::reset),
+        }
     }
 }
 
@@ -691,6 +785,107 @@ impl Future for SaveGameFuture {
                     .map_err(|e| GameKitError::Unknown(format!("bad saved-game JSON: {e}")))
             })
         })
+    }
+}
+
+/// Future produced by [`AsyncLeaderboardSet::load_leaderboards`].
+pub struct LoadLeaderboardSetLeaderboardsFuture {
+    inner: ThreadedResultFuture<Vec<Leaderboard>>,
+}
+
+impl std::fmt::Debug for LoadLeaderboardSetLeaderboardsFuture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LoadLeaderboardSetLeaderboardsFuture")
+            .finish_non_exhaustive()
+    }
+}
+
+impl Future for LoadLeaderboardSetLeaderboardsFuture {
+    type Output = Result<Vec<Leaderboard>, GameKitError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.inner).poll(cx)
+    }
+}
+
+/// Future produced by [`AsyncLeaderboardSet::load_image_data`].
+pub struct LoadLeaderboardSetImageFuture {
+    inner: ThreadedResultFuture<Vec<u8>>,
+}
+
+impl std::fmt::Debug for LoadLeaderboardSetImageFuture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LoadLeaderboardSetImageFuture")
+            .finish_non_exhaustive()
+    }
+}
+
+impl Future for LoadLeaderboardSetImageFuture {
+    type Output = Result<Vec<u8>, GameKitError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.inner).poll(cx)
+    }
+}
+
+/// Async wrappers for leaderboard-set operations.
+#[derive(Debug, Clone, Copy)]
+pub struct AsyncLeaderboardSet;
+
+impl AsyncLeaderboardSet {
+    /// Load the leaderboards contained in a leaderboard set asynchronously.
+    #[must_use]
+    pub fn load_leaderboards(set: &LeaderboardSet) -> LoadLeaderboardSetLeaderboardsFuture {
+        let set = set.clone();
+        LoadLeaderboardSetLeaderboardsFuture {
+            inner: spawn_threaded_future(move || set.load_leaderboards()),
+        }
+    }
+
+    /// Load a leaderboard-set image asynchronously.
+    #[must_use]
+    pub fn load_image_data(set: &LeaderboardSet) -> LoadLeaderboardSetImageFuture {
+        let set = set.clone();
+        LoadLeaderboardSetImageFuture {
+            inner: spawn_threaded_future(move || set.load_image_data()),
+        }
+    }
+}
+
+/// Future produced by [`AsyncChallengeDefinition::load_image_data`].
+pub struct LoadChallengeDefinitionImageFuture {
+    inner: ThreadedResultFuture<Vec<u8>>,
+}
+
+impl std::fmt::Debug for LoadChallengeDefinitionImageFuture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LoadChallengeDefinitionImageFuture")
+            .finish_non_exhaustive()
+    }
+}
+
+impl Future for LoadChallengeDefinitionImageFuture {
+    type Output = Result<Vec<u8>, GameKitError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.inner).poll(cx)
+    }
+}
+
+/// Async wrappers for challenge-definition operations.
+#[derive(Debug, Clone, Copy)]
+pub struct AsyncChallengeDefinition;
+
+impl AsyncChallengeDefinition {
+    /// Load a challenge-definition image asynchronously.
+    #[must_use]
+    pub fn load_image_data(
+        definition: &ChallengeDefinition,
+    ) -> LoadChallengeDefinitionImageFuture {
+        let definition = definition.clone();
+        LoadChallengeDefinitionImageFuture {
+            inner: spawn_threaded_future(move || definition.load_image_data()),
+        }
     }
 }
 

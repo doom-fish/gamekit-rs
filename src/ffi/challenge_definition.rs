@@ -11,4 +11,10 @@ unsafe extern "C" {
         out_active: *mut bool,
         out_error: *mut *mut c_char,
     ) -> i32;
+
+    pub fn gk_challenge_definition_load_image_json(
+        identifier: *const c_char,
+        out_json: *mut *mut c_char,
+        out_error: *mut *mut c_char,
+    ) -> i32;
 }
