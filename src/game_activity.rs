@@ -687,21 +687,12 @@ impl GameActivity {
     }
 }
 
-impl Clone for GameActivity {
-    fn clone(&self) -> Self {
-        Self {
-            ptr: unsafe { ffi::gk_game_activity_retain(self.ptr) },
-        }
-    }
-}
-
-impl Drop for GameActivity {
-    fn drop(&mut self) {
-        unsafe {
-            ffi::gk_game_activity_release(self.ptr);
-        }
-    }
-}
+crate::utils::retained::gk_retained!(
+    GameActivity,
+    field = ptr,
+    retain = ffi::gk_game_activity_retain,
+    release = ffi::gk_game_activity_release,
+);
 
 impl GameActivityPlayStyle {
     const fn from_raw(value: i32) -> Self {

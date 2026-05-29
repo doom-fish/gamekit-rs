@@ -164,21 +164,12 @@ impl Invite {
     }
 }
 
-impl Clone for Invite {
-    fn clone(&self) -> Self {
-        Self {
-            ptr: unsafe { ffi::gk_invite_retain(self.ptr) },
-        }
-    }
-}
-
-impl Drop for Invite {
-    fn drop(&mut self) {
-        unsafe {
-            ffi::gk_invite_release(self.ptr);
-        }
-    }
-}
+crate::utils::retained::gk_retained!(
+    Invite,
+    field = ptr,
+    retain = ffi::gk_invite_retain,
+    release = ffi::gk_invite_release,
+);
 
 impl DialogController {
     /// Returns the shared Game Center dialog presenter.
@@ -442,7 +433,7 @@ impl MatchmakerViewController {
         }
 
         MatchmakerViewControllerDelegate {
-            controller_ptr: self.ptr,
+            controller_ptr: unsafe { ffi::gk_matchmaker_view_controller_retain(self.ptr) },
             handler_ptr,
         }
     }
@@ -453,26 +444,18 @@ impl MatchmakerViewController {
     }
 }
 
-impl Clone for MatchmakerViewController {
-    fn clone(&self) -> Self {
-        Self {
-            ptr: unsafe { ffi::gk_matchmaker_view_controller_retain(self.ptr) },
-        }
-    }
-}
-
-impl Drop for MatchmakerViewController {
-    fn drop(&mut self) {
-        unsafe {
-            ffi::gk_matchmaker_view_controller_release(self.ptr);
-        }
-    }
-}
+crate::utils::retained::gk_retained!(
+    MatchmakerViewController,
+    field = ptr,
+    retain = ffi::gk_matchmaker_view_controller_retain,
+    release = ffi::gk_matchmaker_view_controller_release,
+);
 
 impl Drop for MatchmakerViewControllerDelegate {
     fn drop(&mut self) {
         unsafe {
             ffi::gk_matchmaker_view_controller_clear_callbacks(self.controller_ptr);
+            ffi::gk_matchmaker_view_controller_release(self.controller_ptr);
             drop(Box::from_raw(self.handler_ptr));
         }
     }
@@ -557,7 +540,9 @@ impl TurnBasedMatchmakerViewController {
         }
 
         TurnBasedMatchmakerViewControllerDelegate {
-            controller_ptr: self.ptr,
+            controller_ptr: unsafe {
+                ffi::gk_turn_based_matchmaker_view_controller_retain(self.ptr)
+            },
             handler_ptr,
         }
     }
@@ -568,26 +553,18 @@ impl TurnBasedMatchmakerViewController {
     }
 }
 
-impl Clone for TurnBasedMatchmakerViewController {
-    fn clone(&self) -> Self {
-        Self {
-            ptr: unsafe { ffi::gk_turn_based_matchmaker_view_controller_retain(self.ptr) },
-        }
-    }
-}
-
-impl Drop for TurnBasedMatchmakerViewController {
-    fn drop(&mut self) {
-        unsafe {
-            ffi::gk_turn_based_matchmaker_view_controller_release(self.ptr);
-        }
-    }
-}
+crate::utils::retained::gk_retained!(
+    TurnBasedMatchmakerViewController,
+    field = ptr,
+    retain = ffi::gk_turn_based_matchmaker_view_controller_retain,
+    release = ffi::gk_turn_based_matchmaker_view_controller_release,
+);
 
 impl Drop for TurnBasedMatchmakerViewControllerDelegate {
     fn drop(&mut self) {
         unsafe {
             ffi::gk_turn_based_matchmaker_view_controller_clear_callbacks(self.controller_ptr);
+            ffi::gk_turn_based_matchmaker_view_controller_release(self.controller_ptr);
             drop(Box::from_raw(self.handler_ptr));
         }
     }
@@ -685,10 +662,9 @@ unsafe extern "C" fn turn_based_matchmaker_view_controller_trampoline(
         _ => Some(TurnBasedMatchmakerViewControllerEvent::Cancelled),
     };
     if let Some(event) = event {
-        catch_user_panic(
-            "turn_based_matchmaker_view_controller_trampoline",
-            || handler(event),
-        );
+        catch_user_panic("turn_based_matchmaker_view_controller_trampoline", || {
+            handler(event)
+        });
     }
 }
 

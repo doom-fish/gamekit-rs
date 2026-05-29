@@ -15,7 +15,6 @@ let package = Package(
     targets: [
         .target(
             name: "GameKitBridge",
-            path: "Sources/GameKitBridge",
-            publicHeadersPath: "include")
+            path: "Sources/GameKitBridge")
     ]
 )

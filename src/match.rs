@@ -189,7 +189,7 @@ impl Match {
         }
 
         MatchDelegate {
-            match_ptr: self.ptr,
+            match_ptr: unsafe { ffi::gk_match_retain(self.ptr) },
             handler_ptr,
         }
     }
@@ -202,24 +202,19 @@ impl Match {
     }
 }
 
-impl Clone for Match {
-    fn clone(&self) -> Self {
-        Self {
-            ptr: unsafe { ffi::gk_match_retain(self.ptr) },
-        }
-    }
-}
-
-impl Drop for Match {
-    fn drop(&mut self) {
-        unsafe {
-            ffi::gk_match_release(self.ptr);
-        }
-    }
-}
+crate::utils::retained::gk_retained!(
+    Match,
+    field = ptr,
+    retain = ffi::gk_match_retain,
+    release = ffi::gk_match_release,
+);
 
 /// A guard that manages match event callbacks. Clears callbacks when dropped.
 pub struct MatchDelegate {
+    /// Retained `GKMatch` pointer (+1 taken in `Match::set_delegate`). Owning a
+    /// reference keeps the match alive so `clear_callbacks` on drop can never
+    /// run against a freed object even if the originating `Match` is dropped
+    /// first.
     match_ptr: *mut c_void,
     handler_ptr: *mut Box<dyn Fn(MatchEvent) + Send + 'static>,
 }
@@ -233,6 +228,7 @@ impl Drop for MatchDelegate {
     fn drop(&mut self) {
         unsafe {
             ffi::gk_match_clear_callbacks(self.match_ptr);
+            ffi::gk_match_release(self.match_ptr);
             drop(Box::from_raw(self.handler_ptr));
         }
     }

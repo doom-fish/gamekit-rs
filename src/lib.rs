@@ -33,6 +33,7 @@ pub mod real_time;
 pub mod save;
 pub mod score;
 pub mod turn_based;
+pub(crate) mod utils;
 
 pub use access_point::{
     AccessPoint, AccessPointFrame, AccessPointLocation, AccessPointSnapshot, AccessPointState,
