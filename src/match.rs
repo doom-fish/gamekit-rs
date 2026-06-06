@@ -246,7 +246,15 @@ unsafe extern "C" fn match_data_trampoline(
     let handler = &*(refcon.cast::<Box<dyn Fn(MatchEvent) + Send + 'static>>());
     if let Ok(player_str) = CStr::from_ptr(player_json).to_str() {
         if let Ok(player) = serde_json::from_str::<Player>(player_str) {
-            let data_vec = std::slice::from_raw_parts(data, len).to_vec();
+            // `std::slice::from_raw_parts` requires a non-null, aligned pointer
+            // even for zero-length slices. Swift's `Data.withUnsafeBytes` yields a
+            // null `baseAddress` for empty payloads, which a remote peer can send,
+            // so guard against null/zero length to avoid undefined behavior.
+            let data_vec = if data.is_null() || len == 0 {
+                Vec::new()
+            } else {
+                std::slice::from_raw_parts(data, len).to_vec()
+            };
             catch_user_panic("match_data_trampoline", || {
                 handler(MatchEvent::ReceivedData {
                     player,
