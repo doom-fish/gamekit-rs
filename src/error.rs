@@ -163,6 +163,7 @@ pub enum GameKitError {
     NotAuthenticated,
     NotFound(String),
     Unavailable(String),
+    WrongThread(String),
     Framework(GameKitFrameworkError),
     Unknown(String),
 }
@@ -173,6 +174,7 @@ impl fmt::Display for GameKitError {
             Self::TimedOut(message)
             | Self::NotFound(message)
             | Self::Unavailable(message)
+            | Self::WrongThread(message)
             | Self::Unknown(message) => formatter.write_str(message),
             Self::NotAuthenticated => formatter.write_str("not authenticated"),
             Self::Framework(error) => write!(
@@ -223,6 +225,9 @@ pub(crate) unsafe fn from_swift(status: i32, err_msg: *mut c_char) -> GameKitErr
         ),
         ffi::status::UNAVAILABLE => GameKitError::Unavailable(
             message.unwrap_or_else(|| "GameKit API is unavailable on this SDK or OS".to_owned()),
+        ),
+        ffi::status::WRONG_THREAD => GameKitError::WrongThread(
+            message.unwrap_or_else(|| "GameKit call made on the wrong thread".to_owned()),
         ),
         ffi::status::FRAMEWORK_ERROR => parse_framework_error(message),
         _ => GameKitError::Unknown(

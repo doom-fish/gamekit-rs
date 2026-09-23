@@ -199,10 +199,12 @@ public func gk_turn_based_find_match_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let requestJSON = gkCopyString(requestJSON)
+    return gkBlockOnAsync(
         work: {
             let payload = try gkDecodeJSON(requestJSON, as: GKTurnBasedMatchRequestPayload.self)
             let request = try await gkMakeTurnBasedRequest(from: payload)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 GKTurnBasedMatch.find(for: request) { match, error in
                     if let error {
@@ -231,7 +233,8 @@ public func gk_turn_based_load_matches_json(
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKTurnBasedMatch], Error>) in
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKTurnBasedMatch], Error>) in
                 GKTurnBasedMatch.loadMatches { matches, error in
                     if let error {
                         continuation.resume(throwing: error)
@@ -257,12 +260,13 @@ public func gk_turn_based_load_match_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    return gkBlockOnAsync(
         work: {
             guard let matchID else {
                 throw GKBridgeError.unknown("missing match identifier")
             }
-            return try await gkLoadTurnBasedMatch(with: String(cString: matchID))
+            return try await gkLoadTurnBasedMatch(with: matchID)
         },
         onSuccess: { match in
             outJSON?.pointee = gkCString((try? gkEncodeJSON(try gkTurnBasedMatchPayload(from: match))) ?? "{}")
@@ -279,12 +283,14 @@ public func gk_turn_based_rematch_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    return gkBlockOnAsync(
         work: {
             guard let matchID else {
                 throw GKBridgeError.unknown("missing match identifier")
             }
-            let match = try await gkLoadTurnBasedMatch(with: String(cString: matchID))
+            let match = try await gkLoadTurnBasedMatch(with: matchID)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 match.rematch { rematch, error in
                     if let error {
@@ -312,12 +318,14 @@ public func gk_turn_based_accept_invite_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    return gkBlockOnAsync(
         work: {
             guard let matchID else {
                 throw GKBridgeError.unknown("missing match identifier")
             }
-            let match = try await gkLoadTurnBasedMatch(with: String(cString: matchID))
+            let match = try await gkLoadTurnBasedMatch(with: matchID)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 match.acceptInvite { acceptedMatch, error in
                     if let error {
@@ -344,12 +352,14 @@ public func gk_turn_based_decline_invite(
     _ matchID: UnsafePointer<CChar>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    return gkBlockOnAsync(
         work: {
             guard let matchID else {
                 throw GKBridgeError.unknown("missing match identifier")
             }
-            let match = try await gkLoadTurnBasedMatch(with: String(cString: matchID))
+            let match = try await gkLoadTurnBasedMatch(with: matchID)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 match.declineInvite { error in
                     if let error {
@@ -372,12 +382,14 @@ public func gk_turn_based_remove(
     _ matchID: UnsafePointer<CChar>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    return gkBlockOnAsync(
         work: {
             guard let matchID else {
                 throw GKBridgeError.unknown("missing match identifier")
             }
-            let match = try await gkLoadTurnBasedMatch(with: String(cString: matchID))
+            let match = try await gkLoadTurnBasedMatch(with: matchID)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 match.remove { error in
                     if let error {
@@ -401,12 +413,14 @@ public func gk_turn_based_load_match_data_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    return gkBlockOnAsync(
         work: {
             guard let matchID else {
                 throw GKBridgeError.unknown("missing match identifier")
             }
-            let match = try await gkLoadTurnBasedMatch(with: String(cString: matchID))
+            let match = try await gkLoadTurnBasedMatch(with: matchID)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 match.loadMatchData { data, error in
                     if let error {
@@ -433,13 +447,16 @@ public func gk_turn_based_save_current_turn(
     _ len: Int,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    let data = gkCopyData(data, len)
+    return gkBlockOnAsync(
         work: {
             guard let matchID else {
                 throw GKBridgeError.unknown("missing match identifier")
             }
-            let match = try await gkLoadTurnBasedMatch(with: String(cString: matchID))
-            let matchData = data.map { Data(bytes: $0, count: len) } ?? Data()
+            let match = try await gkLoadTurnBasedMatch(with: matchID)
+            let matchData = data
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 match.saveCurrentTurn(withMatch: matchData) { error in
                     if let error {
@@ -466,15 +483,19 @@ public func gk_turn_based_end_turn(
     _ len: Int,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    let nextIndicesJSON = gkCopyString(nextIndicesJSON)
+    let data = gkCopyData(data, len)
+    return gkBlockOnAsync(
         work: {
             guard let matchID else {
                 throw GKBridgeError.unknown("missing match identifier")
             }
             let indices = try gkDecodeJSON(nextIndicesJSON, as: [Int].self)
-            let match = try await gkLoadTurnBasedMatch(with: String(cString: matchID))
+            let match = try await gkLoadTurnBasedMatch(with: matchID)
             let participants = try gkTurnBasedParticipants(from: indices, in: match)
-            let matchData = data.map { Data(bytes: $0, count: len) } ?? Data()
+            let matchData = data
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 match.endTurn(withNextParticipants: participants, turnTimeout: timeoutSeconds, match: matchData) { error in
                     if let error {
@@ -502,16 +523,20 @@ public func gk_turn_based_participant_quit_in_turn(
     _ len: Int,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    let nextIndicesJSON = gkCopyString(nextIndicesJSON)
+    let data = gkCopyData(data, len)
+    return gkBlockOnAsync(
         work: {
             guard let matchID else {
                 throw GKBridgeError.unknown("missing match identifier")
             }
             let indices = try gkDecodeJSON(nextIndicesJSON, as: [Int].self)
-            let match = try await gkLoadTurnBasedMatch(with: String(cString: matchID))
+            let match = try await gkLoadTurnBasedMatch(with: matchID)
             let participants = try gkTurnBasedParticipants(from: indices, in: match)
-            let matchData = data.map { Data(bytes: $0, count: len) } ?? Data()
+            let matchData = data
             let outcomeValue = GKTurnBasedMatch.Outcome(rawValue: Int(outcome)) ?? .none
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 match.participantQuitInTurn(with: outcomeValue, nextParticipants: participants, turnTimeout: timeoutSeconds, match: matchData) { error in
                     if let error {
@@ -535,13 +560,15 @@ public func gk_turn_based_participant_quit_out_of_turn(
     _ outcome: Int32,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    return gkBlockOnAsync(
         work: {
             guard let matchID else {
                 throw GKBridgeError.unknown("missing match identifier")
             }
-            let match = try await gkLoadTurnBasedMatch(with: String(cString: matchID))
+            let match = try await gkLoadTurnBasedMatch(with: matchID)
             let outcomeValue = GKTurnBasedMatch.Outcome(rawValue: Int(outcome)) ?? .none
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 match.participantQuitOutOfTurn(with: outcomeValue) { error in
                     if let error {
@@ -568,13 +595,17 @@ public func gk_turn_based_end_match_in_turn(
     _ achievementsJSON: UnsafePointer<CChar>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    let data = gkCopyData(data, len)
+    let scoresJSON = gkCopyString(scoresJSON)
+    let achievementsJSON = gkCopyString(achievementsJSON)
+    return gkBlockOnAsync(
         work: {
             guard let matchID else {
                 throw GKBridgeError.unknown("missing match identifier")
             }
-            let match = try await gkLoadTurnBasedMatch(with: String(cString: matchID))
-            let matchData = data.map { Data(bytes: $0, count: len) } ?? Data()
+            let match = try await gkLoadTurnBasedMatch(with: matchID)
+            let matchData = data
             let scores = if let scoresJSON {
                 try await gkBuildLeaderboardScores(
                     from: try gkDecodeJSON(scoresJSON, as: [GKScoreInputPayload].self),
@@ -591,6 +622,7 @@ public func gk_turn_based_end_match_in_turn(
             } else {
                 [GKAchievement]()
             }
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 match.endMatchInTurn(withMatch: matchData, leaderboardScores: scores, achievements: achievements) { error in
                     if let error {
@@ -616,15 +648,19 @@ public func gk_turn_based_save_merged_match_data(
     _ resolvedIndicesJSON: UnsafePointer<CChar>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    let data = gkCopyData(data, len)
+    let resolvedIndicesJSON = gkCopyString(resolvedIndicesJSON)
+    return gkBlockOnAsync(
         work: {
             guard let matchID else {
                 throw GKBridgeError.unknown("missing match identifier")
             }
             let indices = try gkDecodeJSON(resolvedIndicesJSON, as: [Int].self)
-            let match = try await gkLoadTurnBasedMatch(with: String(cString: matchID))
+            let match = try await gkLoadTurnBasedMatch(with: matchID)
             let exchanges = try indices.map { try gkTurnBasedExchange(at: $0, in: match) }
-            let matchData = data.map { Data(bytes: $0, count: len) } ?? Data()
+            let matchData = data
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 match.saveMergedMatch(matchData, withResolvedExchanges: exchanges) { error in
                     if let error {
@@ -654,18 +690,24 @@ public func gk_turn_based_send_exchange_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    let participantIndicesJSON = gkCopyString(participantIndicesJSON)
+    let data = gkCopyData(data, len)
+    let key = gkCopyString(key)
+    let argsJSON = gkCopyString(argsJSON)
+    return gkBlockOnAsync(
         work: {
             guard let matchID, let key else {
                 throw GKBridgeError.unknown("missing exchange parameters")
             }
             let indices = try gkDecodeJSON(participantIndicesJSON, as: [Int].self)
             let arguments = try gkDecodeJSON(argsJSON, as: [String].self)
-            let match = try await gkLoadTurnBasedMatch(with: String(cString: matchID))
+            let match = try await gkLoadTurnBasedMatch(with: matchID)
             let participants = try gkTurnBasedParticipants(from: indices, in: match)
-            let exchangeData = data.map { Data(bytes: $0, count: len) } ?? Data()
+            let exchangeData = data
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GKTurnBasedExchange, Error>) in
-                match.sendExchange(to: participants, data: exchangeData, localizableMessageKey: String(cString: key), arguments: arguments, timeout: timeoutSeconds) { exchange, error in
+                match.sendExchange(to: participants, data: exchangeData, localizableMessageKey: key, arguments: arguments, timeout: timeoutSeconds) { exchange, error in
                     if let error {
                         continuation.resume(throwing: error)
                     } else if let exchange {
@@ -694,16 +736,20 @@ public func gk_turn_based_cancel_exchange(
     _ argsJSON: UnsafePointer<CChar>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    let key = gkCopyString(key)
+    let argsJSON = gkCopyString(argsJSON)
+    return gkBlockOnAsync(
         work: {
             guard let matchID, let key else {
                 throw GKBridgeError.unknown("missing exchange parameters")
             }
             let arguments = try gkDecodeJSON(argsJSON, as: [String].self)
-            let match = try await gkLoadTurnBasedMatch(with: String(cString: matchID))
+            let match = try await gkLoadTurnBasedMatch(with: matchID)
             let exchange = try gkTurnBasedExchange(at: exchangeIndex, in: match)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
-                exchange.cancel(withLocalizableMessageKey: String(cString: key), arguments: arguments) { error in
+                exchange.cancel(withLocalizableMessageKey: key, arguments: arguments) { error in
                     if let error {
                         continuation.resume(throwing: error)
                     } else {
@@ -729,17 +775,22 @@ public func gk_turn_based_reply_exchange(
     _ len: Int,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    let key = gkCopyString(key)
+    let argsJSON = gkCopyString(argsJSON)
+    let data = gkCopyData(data, len)
+    return gkBlockOnAsync(
         work: {
             guard let matchID, let key else {
                 throw GKBridgeError.unknown("missing exchange parameters")
             }
             let arguments = try gkDecodeJSON(argsJSON, as: [String].self)
-            let match = try await gkLoadTurnBasedMatch(with: String(cString: matchID))
+            let match = try await gkLoadTurnBasedMatch(with: matchID)
             let exchange = try gkTurnBasedExchange(at: exchangeIndex, in: match)
-            let exchangeData = data.map { Data(bytes: $0, count: len) } ?? Data()
+            let exchangeData = data
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
-                exchange.reply(withLocalizableMessageKey: String(cString: key), arguments: arguments, data: exchangeData) { error in
+                exchange.reply(withLocalizableMessageKey: key, arguments: arguments, data: exchangeData) { error in
                     if let error {
                         continuation.resume(throwing: error)
                     } else {
@@ -763,17 +814,22 @@ public func gk_turn_based_send_reminder(
     _ argsJSON: UnsafePointer<CChar>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let matchID = gkCopyString(matchID)
+    let participantIndicesJSON = gkCopyString(participantIndicesJSON)
+    let key = gkCopyString(key)
+    let argsJSON = gkCopyString(argsJSON)
+    return gkBlockOnAsync(
         work: {
             guard let matchID, let key else {
                 throw GKBridgeError.unknown("missing reminder parameters")
             }
             let indices = try gkDecodeJSON(participantIndicesJSON, as: [Int].self)
             let arguments = try gkDecodeJSON(argsJSON, as: [String].self)
-            let match = try await gkLoadTurnBasedMatch(with: String(cString: matchID))
+            let match = try await gkLoadTurnBasedMatch(with: matchID)
             let participants = try gkTurnBasedParticipants(from: indices, in: match)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
-                match.sendReminder(to: participants, localizableMessageKey: String(cString: key), arguments: arguments) { error in
+                match.sendReminder(to: participants, localizableMessageKey: key, arguments: arguments) { error in
                     if let error {
                         continuation.resume(throwing: error)
                     } else {

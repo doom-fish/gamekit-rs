@@ -37,7 +37,8 @@ public func gk_leaderboard_sets_json(
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKLeaderboardSet], Error>) in
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKLeaderboardSet], Error>) in
                 GKLeaderboardSet.loadLeaderboardSets { sets, error in
                     if let error {
                         continuation.resume(throwing: error)
@@ -62,12 +63,14 @@ public func gk_leaderboard_set_load_leaderboards_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let identifier = gkCopyString(identifier)
+    return gkBlockOnAsync(
         work: {
             guard let identifier else {
                 throw GKBridgeError.unknown("missing leaderboard set identifier")
             }
-            let set = try await gkLoadLeaderboardSet(with: String(cString: identifier))
+            let set = try await gkLoadLeaderboardSet(with: identifier)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKLeaderboard], Error>) in
                 set.loadLeaderboards { leaderboards, error in
                     if let error {
@@ -93,12 +96,14 @@ public func gk_leaderboard_set_load_image_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let identifier = gkCopyString(identifier)
+    return gkBlockOnAsync(
         work: {
             guard let identifier else {
                 throw GKBridgeError.unknown("missing leaderboard set identifier")
             }
-            let set = try await gkLoadLeaderboardSet(with: String(cString: identifier))
+            let set = try await gkLoadLeaderboardSet(with: identifier)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
                 set.loadImage { image, error in
                     if let error {

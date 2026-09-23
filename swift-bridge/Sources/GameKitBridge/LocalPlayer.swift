@@ -104,7 +104,8 @@ public func gk_local_player_load_recent_players_json(
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKPlayer], Error>) in
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKPlayer], Error>) in
                 GKLocalPlayer.local.loadRecentPlayers { players, error in
                     if let error {
                         continuation.resume(throwing: error)
@@ -130,7 +131,8 @@ public func gk_local_player_load_challengable_friends_json(
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKPlayer], Error>) in
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKPlayer], Error>) in
                 GKLocalPlayer.local.loadChallengableFriends { players, error in
                     if let error {
                         continuation.resume(throwing: error)
@@ -156,7 +158,8 @@ public func gk_local_player_fetch_identity_verification_signature_json(
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
-            try await withCheckedThrowingContinuation { continuation in
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
                 GKLocalPlayer.local.fetchItems(forIdentityVerificationSignature: { publicKeyURL, signature, salt, timestamp, error in
                     if let error {
                         continuation.resume(throwing: error)
@@ -189,7 +192,8 @@ public func gk_local_player_load_friends_authorization_status(
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GKFriendsAuthorizationStatus, Error>) in
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GKFriendsAuthorizationStatus, Error>) in
                 GKLocalPlayer.local.loadFriendsAuthorizationStatus { status, error in
                     if let error {
                         continuation.resume(throwing: error)
@@ -215,7 +219,8 @@ public func gk_local_player_load_friends_json(
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKPlayer], Error>) in
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKPlayer], Error>) in
                 GKLocalPlayer.local.loadFriends { friends, error in
                     if let error {
                         continuation.resume(throwing: error)
@@ -240,7 +245,8 @@ public func gk_local_player_load_friends_by_identifiers_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let identifiersJSON = gkCopyString(identifiersJSON)
+    return gkBlockOnAsync(
         work: {
             let identifiers = try gkDecodeJSON(identifiersJSON, as: [String].self)
             return try await gkLoadPlayers(identifiedBy: identifiers)

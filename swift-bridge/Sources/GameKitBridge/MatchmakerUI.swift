@@ -273,7 +273,8 @@ public func gk_matchmaker_view_controller_create(
     _ outPtr: UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let requestJSON = gkCopyString(requestJSON)
+    return gkBlockOnAsync(
         work: {
             let payload = try gkDecodeJSON(requestJSON, as: GKMatchRequestPayload.self)
             let request = try await gkMakeMatchRequest(from: payload)
@@ -422,21 +423,22 @@ public func gk_matchmaker_view_controller_set_hosted_player_connected(
     _ connected: Bool,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
+    let playerGameID = gkCopyString(playerGameID)
     guard let ptr else {
         gkPopulateError(outError, with: GKBridgeError.unknown("null matchmaker view controller pointer"))
         return GK_UNKNOWN
     }
+    let controller = gk_borrow(ptr, as: GKMatchmakerViewControllerBox.self).controller
 
     return gkBlockOnAsync(
         work: {
             guard let playerGameID else {
                 throw GKBridgeError.unknown("missing hosted player gamePlayerID")
             }
-            let playersByID = try await gkResolvePlayers(byGameIDs: [String(cString: playerGameID)])
-            guard let player = playersByID[String(cString: playerGameID)] else {
+            let playersByID = try await gkResolvePlayers(byGameIDs: [playerGameID])
+            guard let player = playersByID[playerGameID] else {
                 throw GKBridgeError.notFound("hosted player was not found")
             }
-            let controller = gk_borrow(ptr, as: GKMatchmakerViewControllerBox.self).controller
             controller.setHostedPlayer(player, didConnect: connected)
             return ()
         },
@@ -473,7 +475,8 @@ public func gk_turn_based_matchmaker_view_controller_create(
     _ outPtr: UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let requestJSON = gkCopyString(requestJSON)
+    return gkBlockOnAsync(
         work: {
             let payload = try gkDecodeJSON(requestJSON, as: GKTurnBasedMatchRequestPayload.self)
             let request = try await gkMakeTurnBasedRequest(from: payload)

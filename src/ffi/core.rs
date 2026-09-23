@@ -11,5 +11,6 @@ pub mod status {
     pub const FRAMEWORK_ERROR: i32 = -4;
     pub const NOT_FOUND: i32 = -5;
     pub const UNAVAILABLE: i32 = -6;
+    pub const WRONG_THREAD: i32 = -7;
     pub const UNKNOWN: i32 = -99;
 }

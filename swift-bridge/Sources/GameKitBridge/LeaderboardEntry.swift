@@ -56,13 +56,15 @@ public func gk_leaderboard_load_entries_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let leaderboardID = gkCopyString(leaderboardID)
+    return gkBlockOnAsync(
         work: {
             guard let leaderboardID else {
                 throw GKBridgeError.unknown("missing leaderboard identifier")
             }
-            let leaderboard = try await gkLoadLeaderboard(with: String(cString: leaderboardID))
+            let leaderboard = try await gkLoadLeaderboard(with: leaderboardID)
             let scope: GKLeaderboard.PlayerScope = playerScope == 1 ? .friendsOnly : .global
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(GKLeaderboard.Entry?, [GKLeaderboard.Entry], Int), Error>) in
                 leaderboard.loadEntries(
                     for: scope,
@@ -99,14 +101,17 @@ public func gk_leaderboard_load_entries_for_players_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let leaderboardID = gkCopyString(leaderboardID)
+    let playerIDsJSON = gkCopyString(playerIDsJSON)
+    return gkBlockOnAsync(
         work: {
             guard let leaderboardID else {
                 throw GKBridgeError.unknown("missing leaderboard identifier")
             }
-            let leaderboard = try await gkLoadLeaderboard(with: String(cString: leaderboardID))
+            let leaderboard = try await gkLoadLeaderboard(with: leaderboardID)
             let playerIDs = try gkDecodeJSON(playerIDsJSON, as: [String].self)
             let players = try await gkLoadPlayers(identifiedBy: playerIDs)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(GKLeaderboard.Entry?, [GKLeaderboard.Entry]), Error>) in
                 leaderboard.loadEntries(for: players, timeScope: gkTimeScope(from: timeScope)) { localEntry, entries, error in
                     if let error {

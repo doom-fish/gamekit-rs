@@ -79,7 +79,8 @@ public func gk_achievement_load_json(
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKAchievement], Error>) in
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKAchievement], Error>) in
                 GKAchievement.loadAchievements { achievements, error in
                     if let error {
                         continuation.resume(throwing: error)
@@ -105,7 +106,8 @@ public func gk_achievement_descriptions_json(
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKAchievementDescription], Error>) in
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKAchievementDescription], Error>) in
                 GKAchievementDescription.loadAchievementDescriptions { descriptions, error in
                     if let error {
                         continuation.resume(throwing: error)
@@ -129,10 +131,12 @@ public func gk_achievement_report_json(
     _ achievementsJSON: UnsafePointer<CChar>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let achievementsJSON = gkCopyString(achievementsJSON)
+    return gkBlockOnAsync(
         work: {
             let inputs = try gkDecodeJSON(achievementsJSON, as: [GKAchievementInputPayload].self)
             let achievements = try await gkBuildAchievements(from: inputs)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 GKAchievement.report(achievements) { error in
                     if let error {
@@ -156,7 +160,8 @@ public func gk_achievement_reset(
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
-            try await withCheckedThrowingContinuation { continuation in
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
                 GKAchievement.resetAchievements { error in
                     if let error {
                         continuation.resume(throwing: error)

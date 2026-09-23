@@ -51,7 +51,8 @@ public func gk_leaderboard_load_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let idsJSON = gkCopyString(idsJSON)
+    return gkBlockOnAsync(
         work: {
             let ids: [String]?
             if let idsJSON {
@@ -76,15 +77,17 @@ public func gk_leaderboard_load_previous_occurrence_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let leaderboardID = gkCopyString(leaderboardID)
+    return gkBlockOnAsync(
         work: {
             guard let leaderboardID else {
                 throw GKBridgeError.unknown("missing leaderboard identifier")
             }
-            let identifier = String(cString: leaderboardID)
+            let identifier = leaderboardID
             guard let leaderboard = try await gkLoadLeaderboards(with: [identifier]).first else {
                 throw GKBridgeError.notFound("leaderboard not found")
             }
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GKLeaderboard?, Error>) in
                 leaderboard.loadPreviousOccurrence { occurrence, error in
                     if let error {
@@ -112,9 +115,11 @@ public func gk_leaderboard_submit_score(
     _ idsJSON: UnsafePointer<CChar>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let idsJSON = gkCopyString(idsJSON)
+    return gkBlockOnAsync(
         work: {
             let ids = try gkDecodeJSON(idsJSON, as: [String].self)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 GKLeaderboard.submitScore(Int(score), context: Int(context), player: GKLocalPlayer.local, leaderboardIDs: ids) { error in
                     if let error {
@@ -139,15 +144,17 @@ public func gk_leaderboard_submit_score_for_id(
     _ leaderboardID: UnsafePointer<CChar>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let leaderboardID = gkCopyString(leaderboardID)
+    return gkBlockOnAsync(
         work: {
             guard let leaderboardID else {
                 throw GKBridgeError.unknown("missing leaderboard identifier")
             }
-            let identifier = String(cString: leaderboardID)
+            let identifier = leaderboardID
             guard let leaderboard = try await gkLoadLeaderboards(with: [identifier]).first else {
                 throw GKBridgeError.notFound("leaderboard not found")
             }
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 leaderboard.submitScore(Int(score), context: Int(context), player: GKLocalPlayer.local) { error in
                     if let error {

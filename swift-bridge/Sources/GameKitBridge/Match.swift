@@ -254,9 +254,11 @@ public func gk_match_choose_best_hosting_player_json(
         return GK_UNKNOWN
     }
 
+    let box = gk_borrow(ptr, as: GKMatchBox.self)
+
     return gkBlockOnAsync(
         work: {
-            let box = gk_borrow(ptr, as: GKMatchBox.self)
+            try Task.checkCancellation()
             return await withCheckedContinuation { continuation in
                 box.match.chooseBestHostingPlayer { player in
                     continuation.resume(returning: player)
@@ -284,9 +286,11 @@ public func gk_match_rematch(
         return GK_UNKNOWN
     }
 
+    let box = gk_borrow(ptr, as: GKMatchBox.self)
+
     return gkBlockOnAsync(
         work: {
-            let box = gk_borrow(ptr, as: GKMatchBox.self)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 box.match.rematch { match, error in
                     if let error {

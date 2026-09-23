@@ -161,6 +161,7 @@ public func gk_game_activity_definition_load_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
+    let idsJSON = gkCopyString(idsJSON)
     if #available(macOS 26.0, *) {
         return gkBlockOnAsync(
             work: {
@@ -190,13 +191,15 @@ public func gk_game_activity_definition_load_achievement_descriptions_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
+    let identifier = gkCopyString(identifier)
     if #available(macOS 26.0, *) {
         return gkBlockOnAsync(
             work: {
                 guard let identifier else {
                     throw GKBridgeError.unknown("missing game activity definition identifier")
                 }
-                let definition = try await gkLoadGameActivityDefinition(identifier: String(cString: identifier))
+                let definition = try await gkLoadGameActivityDefinition(identifier: identifier)
+                try Task.checkCancellation()
                 return try await withCheckedThrowingContinuation {
                     (continuation: CheckedContinuation<[GKAchievementDescription], Error>) in
                     definition.loadAchievementDescriptions { descriptions, error in
@@ -226,13 +229,15 @@ public func gk_game_activity_definition_load_leaderboards_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
+    let identifier = gkCopyString(identifier)
     if #available(macOS 26.0, *) {
         return gkBlockOnAsync(
             work: {
                 guard let identifier else {
                     throw GKBridgeError.unknown("missing game activity definition identifier")
                 }
-                let definition = try await gkLoadGameActivityDefinition(identifier: String(cString: identifier))
+                let definition = try await gkLoadGameActivityDefinition(identifier: identifier)
+                try Task.checkCancellation()
                 return try await withCheckedThrowingContinuation {
                     (continuation: CheckedContinuation<[GKLeaderboard], Error>) in
                     definition.loadLeaderboards { leaderboards, error in
@@ -262,13 +267,15 @@ public func gk_game_activity_definition_load_image_tiff_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
+    let identifier = gkCopyString(identifier)
     if #available(macOS 26.0, *) {
         return gkBlockOnAsync(
             work: {
                 guard let identifier else {
                     throw GKBridgeError.unknown("missing game activity definition identifier")
                 }
-                let definition = try await gkLoadGameActivityDefinition(identifier: String(cString: identifier))
+                let definition = try await gkLoadGameActivityDefinition(identifier: identifier)
+                try Task.checkCancellation()
                 let image = try await withCheckedThrowingContinuation {
                     (continuation: CheckedContinuation<NSImage, Error>) in
                     definition.loadImage { image, error in
@@ -306,7 +313,8 @@ public func gk_game_activity_has_pending(
     if #available(macOS 26.0, *) {
         return gkBlockOnAsync(
             work: {
-                await withCheckedContinuation { continuation in
+                try Task.checkCancellation()
+                return await withCheckedContinuation { continuation in
                     GKGameActivity.checkPendingGameActivityExistence { exists in
                         continuation.resume(returning: exists)
                     }
@@ -366,13 +374,14 @@ public func gk_game_activity_create(
     _ outPtr: UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
+    let definitionIdentifier = gkCopyString(definitionIdentifier)
     if #available(macOS 26.0, *) {
         return gkBlockOnAsync(
             work: {
                 guard let definitionIdentifier else {
                     throw GKBridgeError.unknown("missing game activity definition identifier")
                 }
-                let definition = try await gkLoadGameActivityDefinition(identifier: String(cString: definitionIdentifier))
+                let definition = try await gkLoadGameActivityDefinition(identifier: definitionIdentifier)
                 return GKGameActivity(definition: definition)
             },
             onSuccess: { activity in
@@ -393,13 +402,14 @@ public func gk_game_activity_start(
     _ outPtr: UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
+    let definitionIdentifier = gkCopyString(definitionIdentifier)
     if #available(macOS 26.0, *) {
         return gkBlockOnAsync(
             work: {
                 guard let definitionIdentifier else {
                     throw GKBridgeError.unknown("missing game activity definition identifier")
                 }
-                let definition = try await gkLoadGameActivityDefinition(identifier: String(cString: definitionIdentifier))
+                let definition = try await gkLoadGameActivityDefinition(identifier: definitionIdentifier)
                 return try GKGameActivity.start(definition: definition)
             },
             onSuccess: { activity in
@@ -421,6 +431,8 @@ public func gk_game_activity_start_with_party_code(
     _ outPtr: UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
+    let definitionIdentifier = gkCopyString(definitionIdentifier)
+    let partyCode = gkCopyString(partyCode)
     if #available(macOS 26.0, *) {
         return gkBlockOnAsync(
             work: {
@@ -430,8 +442,8 @@ public func gk_game_activity_start_with_party_code(
                 guard let partyCode else {
                     throw GKBridgeError.unknown("missing game activity party code")
                 }
-                let definition = try await gkLoadGameActivityDefinition(identifier: String(cString: definitionIdentifier))
-                return try GKGameActivity.start(definition: definition, partyCode: String(cString: partyCode))
+                let definition = try await gkLoadGameActivityDefinition(identifier: definitionIdentifier)
+                return try GKGameActivity.start(definition: definition, partyCode: partyCode)
             },
             onSuccess: { activity in
                 outPtr?.pointee = gk_retain(activity)
@@ -618,9 +630,10 @@ public func gk_game_activity_find_match(
     }
 
     if #available(macOS 26.0, *) {
+        let activity = gk_borrow(ptr, as: GKGameActivity.self)
         return gkBlockOnAsync(
             work: {
-                let activity = gk_borrow(ptr, as: GKGameActivity.self)
+                try Task.checkCancellation()
                 return try await withCheckedThrowingContinuation { continuation in
                     activity.findMatch { match, error in
                         if let error {
@@ -657,9 +670,10 @@ public func gk_game_activity_find_hosted_players_json(
     }
 
     if #available(macOS 26.0, *) {
+        let activity = gk_borrow(ptr, as: GKGameActivity.self)
         return gkBlockOnAsync(
             work: {
-                let activity = gk_borrow(ptr, as: GKGameActivity.self)
+                try Task.checkCancellation()
                 return try await withCheckedThrowingContinuation {
                     (continuation: CheckedContinuation<[GKPlayer], Error>) in
                     activity.findPlayersForHostedMatch { players, error in
@@ -689,16 +703,17 @@ public func gk_game_activity_set_score_json(
     _ scoreJSON: UnsafePointer<CChar>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
+    let scoreJSON = gkCopyString(scoreJSON)
     guard let ptr else {
         gkPopulateError(outError, with: GKBridgeError.unknown("null game activity pointer"))
         return GK_UNKNOWN
     }
 
     if #available(macOS 26.0, *) {
+        let activity = gk_borrow(ptr, as: GKGameActivity.self)
         return gkBlockOnAsync(
             work: {
                 let payload = try gkDecodeJSON(scoreJSON, as: GKGameActivityScorePayload.self)
-                let activity = gk_borrow(ptr, as: GKGameActivity.self)
                 guard let leaderboard = try await gkLoadLeaderboards(with: [payload.leaderboardID]).first else {
                     throw GKBridgeError.notFound("leaderboard not found")
                 }
@@ -721,12 +736,14 @@ public func gk_game_activity_remove_scores(
     _ leaderboardIDsJSON: UnsafePointer<CChar>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
+    let leaderboardIDsJSON = gkCopyString(leaderboardIDsJSON)
     guard let ptr else {
         gkPopulateError(outError, with: GKBridgeError.unknown("null game activity pointer"))
         return GK_UNKNOWN
     }
 
     if #available(macOS 26.0, *) {
+        let activity = gk_borrow(ptr, as: GKGameActivity.self)
         return gkBlockOnAsync(
             work: {
                 let ids = try gkDecodeJSON(leaderboardIDsJSON, as: [String].self)
@@ -735,7 +752,6 @@ public func gk_game_activity_remove_scores(
                 if foundIDs.count != Set(ids).count {
                     throw GKBridgeError.notFound("one or more leaderboards were not found")
                 }
-                let activity = gk_borrow(ptr, as: GKGameActivity.self)
                 activity.removeScores(from: leaderboards)
                 return ()
             },

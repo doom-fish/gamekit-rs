@@ -82,6 +82,7 @@ public func gk_matchmaker_find_match_async(
     _ cb: @convention(c) (UnsafeMutableRawPointer?, UnsafePointer<CChar>?, UnsafeMutableRawPointer) -> Void,
     _ ctx: UnsafeMutableRawPointer
 ) {
+    let requestJSON = gkCopyString(requestJSON)
     Task {
         do {
             let payload = try gkDecodeJSON(requestJSON, as: GKMatchRequestPayload.self)
@@ -108,6 +109,7 @@ public func gk_matchmaker_find_players_async(
     _ cb: @convention(c) (UnsafePointer<CChar>?, UnsafePointer<CChar>?, UnsafeMutableRawPointer) -> Void,
     _ ctx: UnsafeMutableRawPointer
 ) {
+    let requestJSON = gkCopyString(requestJSON)
     Task {
         do {
             let payload = try gkDecodeJSON(requestJSON, as: GKMatchRequestPayload.self)
@@ -135,6 +137,7 @@ public func gk_leaderboard_load_async(
     _ cb: @convention(c) (UnsafePointer<CChar>?, UnsafePointer<CChar>?, UnsafeMutableRawPointer) -> Void,
     _ ctx: UnsafeMutableRawPointer
 ) {
+    let idsJSON = gkCopyString(idsJSON)
     Task {
         do {
             let ids: [String]? = idsJSON.flatMap { try? gkDecodeJSON($0, as: [String].self) }
@@ -158,12 +161,13 @@ public func gk_leaderboard_load_entries_async(
     _ cb: @convention(c) (UnsafePointer<CChar>?, UnsafePointer<CChar>?, UnsafeMutableRawPointer) -> Void,
     _ ctx: UnsafeMutableRawPointer
 ) {
+    let leaderboardID = gkCopyString(leaderboardID)
     Task {
         do {
             guard let leaderboardID else {
                 throw GKBridgeError.unknown("missing leaderboard identifier")
             }
-            let leaderboards = try await gkLoadLeaderboards(with: [String(cString: leaderboardID)])
+            let leaderboards = try await gkLoadLeaderboards(with: [leaderboardID])
             guard let leaderboard = leaderboards.first else {
                 throw GKBridgeError.notFound("leaderboard not found")
             }
@@ -225,6 +229,7 @@ public func gk_achievement_report_async(
     _ cb: @convention(c) (UnsafePointer<CChar>?, UnsafePointer<CChar>?, UnsafeMutableRawPointer) -> Void,
     _ ctx: UnsafeMutableRawPointer
 ) {
+    let achievementsJSON = gkCopyString(achievementsJSON)
     Task {
         do {
             let inputs = try gkDecodeJSON(achievementsJSON, as: [GKAchievementInputPayload].self)
@@ -273,6 +278,7 @@ public func gk_saved_game_load_data_async(
     _ cb: @convention(c) (UnsafePointer<CChar>?, UnsafePointer<CChar>?, UnsafeMutableRawPointer) -> Void,
     _ ctx: UnsafeMutableRawPointer
 ) {
+    let savedGameJSON = gkCopyString(savedGameJSON)
     Task {
         do {
             let payload = try gkDecodeJSON(savedGameJSON, as: GKSavedGamePayload.self)
@@ -312,14 +318,16 @@ public func gk_saved_game_save_async(
     _ cb: @convention(c) (UnsafePointer<CChar>?, UnsafePointer<CChar>?, UnsafeMutableRawPointer) -> Void,
     _ ctx: UnsafeMutableRawPointer
 ) {
+    let name = gkCopyString(name)
+    let data = gkCopyData(data, len)
     Task {
         do {
             guard let name else {
                 throw GKBridgeError.unknown("missing saved game name")
             }
-            let payload = data.map { Data(bytes: $0, count: len) } ?? Data()
+            let payload = data
             let savedGame = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<GKSavedGame, Error>) in
-                GKLocalPlayer.local.saveGameData(payload, withName: String(cString: name)) { savedGame, error in
+                GKLocalPlayer.local.saveGameData(payload, withName: name) { savedGame, error in
                     if let error { cont.resume(throwing: error) }
                     else if let savedGame { cont.resume(returning: savedGame) }
                     else { cont.resume(throwing: GKBridgeError.unknown("saveGameData returned nil")) }

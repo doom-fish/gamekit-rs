@@ -1,10 +1,11 @@
 use core::ffi::{c_char, c_void};
 use std::collections::BTreeMap;
 use std::ffi::CStr;
+use std::sync::{Mutex, PoisonError};
 
 use serde::{Deserialize, Serialize};
 
-use doom_fish_utils::panic_safe::catch_user_panic;
+use doom_fish_utils::callback_context::CallbackContext;
 
 use crate::{ffi, private, GameKitError, InviteRecipientResponse, Match, Player};
 
@@ -109,6 +110,8 @@ impl Matchmaker {
                 request_json.as_ptr(),
                 None,
                 std::ptr::null_mut(),
+                None,
+                None,
                 &mut out_match_ptr,
                 &mut out_error,
             );
@@ -128,9 +131,7 @@ impl Matchmaker {
         handler: F,
     ) -> Result<Match, GameKitError> {
         let request_json = request_json(request)?;
-        let boxed: Box<dyn FnMut(Player, InviteRecipientResponse) + Send + 'static> =
-            Box::new(handler);
-        let handler_ptr = Box::into_raw(Box::new(boxed));
+        let context = recipient_response_context(handler);
 
         unsafe {
             let mut out_match_ptr: *mut c_void = std::ptr::null_mut();
@@ -138,11 +139,13 @@ impl Matchmaker {
             let status = ffi::gk_matchmaker_find_match_json(
                 request_json.as_ptr(),
                 Some(invite_recipient_response_trampoline),
-                handler_ptr.cast(),
+                context.as_ptr(),
+                Some(RecipientResponseContext::RETAIN),
+                Some(RecipientResponseContext::RELEASE),
                 &mut out_match_ptr,
                 &mut out_error,
             );
-            drop(Box::from_raw(handler_ptr));
+            drop(context);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -161,6 +164,8 @@ impl Matchmaker {
                 request_json.as_ptr(),
                 None,
                 std::ptr::null_mut(),
+                None,
+                None,
                 &mut out_json,
                 &mut out_error,
             );
@@ -180,9 +185,7 @@ impl Matchmaker {
         handler: F,
     ) -> Result<Vec<Player>, GameKitError> {
         let request_json = request_json(request)?;
-        let boxed: Box<dyn FnMut(Player, InviteRecipientResponse) + Send + 'static> =
-            Box::new(handler);
-        let handler_ptr = Box::into_raw(Box::new(boxed));
+        let context = recipient_response_context(handler);
 
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
@@ -190,11 +193,13 @@ impl Matchmaker {
             let status = ffi::gk_matchmaker_find_hosted_players_json(
                 request_json.as_ptr(),
                 Some(invite_recipient_response_trampoline),
-                handler_ptr.cast(),
+                context.as_ptr(),
+                Some(RecipientResponseContext::RETAIN),
+                Some(RecipientResponseContext::RELEASE),
                 &mut out_json,
                 &mut out_error,
             );
-            drop(Box::from_raw(handler_ptr));
+            drop(context);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -361,6 +366,17 @@ fn parse_match_properties(
     .transpose()
 }
 
+type RecipientResponseHandler =
+    Mutex<Box<dyn FnMut(Player, InviteRecipientResponse) + Send + 'static>>;
+type RecipientResponseContext = CallbackContext<RecipientResponseHandler>;
+
+fn recipient_response_context<F>(handler: F) -> RecipientResponseContext
+where
+    F: FnMut(Player, InviteRecipientResponse) + Send + 'static,
+{
+    CallbackContext::new(Mutex::new(Box::new(handler)))
+}
+
 unsafe extern "C" fn invite_recipient_response_trampoline(
     refcon: *mut c_void,
     player_json: *const c_char,
@@ -369,19 +385,18 @@ unsafe extern "C" fn invite_recipient_response_trampoline(
     if player_json.is_null() {
         return;
     }
-
-    // SAFETY: refcon is a valid `Box<Box<dyn FnMut(Player, InviteRecipientResponse) + Send>>`
-    // created by `find_match_with_recipient_responses` / `find_hosted_players_with_recipient_responses`
-    // and valid for the synchronous duration of the Swift matchmaking call that owns it.
-    let handler =
-        &mut *(refcon.cast::<Box<dyn FnMut(Player, InviteRecipientResponse) + Send + 'static>>());
-    if let Ok(player_str) = CStr::from_ptr(player_json).to_str() {
-        if let Ok(player) = serde_json::from_str::<Player>(player_str) {
-            catch_user_panic("invite_recipient_response_trampoline", || {
-                handler(player, InviteRecipientResponse::from_raw(response));
-            });
-        }
-    }
+    let Ok(player_str) = CStr::from_ptr(player_json).to_str() else {
+        return;
+    };
+    let Ok(player) = serde_json::from_str::<Player>(player_str) else {
+        return;
+    };
+    // SAFETY: refcon is the `RecipientResponseContext` handed to the matchmaking call; the Swift
+    // request handler holds a reference to it until GameKit releases the request.
+    let _ = RecipientResponseContext::with(refcon, "invite_recipient_response_trampoline", |handler| {
+        let mut handler = handler.lock().unwrap_or_else(PoisonError::into_inner);
+        handler(player, InviteRecipientResponse::from_raw(response));
+    });
 }
 
 const fn match_type_to_i32(match_type: MatchType) -> i32 {

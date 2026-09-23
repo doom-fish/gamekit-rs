@@ -57,10 +57,31 @@ private func gkMatchedPlayersPayload(from matchedPlayers: GKMatchedPlayers) -> G
     )
 }
 
+final class GKRecipientResponseSink {
+    let callback: GKInviteRecipientResponseCallbackFn
+    let refcon: UnsafeMutableRawPointer?
+    let releaseContext: GKContextCallback
+
+    init(
+        callback: @escaping GKInviteRecipientResponseCallbackFn,
+        refcon: UnsafeMutableRawPointer?,
+        retainContext: GKContextCallback,
+        releaseContext: @escaping GKContextCallback
+    ) {
+        self.callback = callback
+        self.refcon = refcon
+        self.releaseContext = releaseContext
+        retainContext(refcon)
+    }
+
+    deinit {
+        releaseContext(refcon)
+    }
+}
+
 func gkMakeMatchRequest(
     from payload: GKMatchRequestPayload,
-    responseCallback: GKInviteRecipientResponseCallbackFn? = nil,
-    refcon: UnsafeMutableRawPointer? = nil
+    responseSink: GKRecipientResponseSink? = nil
 ) async throws -> GKMatchRequest {
     let request = GKMatchRequest()
     request.minPlayers = payload.minPlayers
@@ -72,14 +93,14 @@ func gkMakeMatchRequest(
     if !payload.recipientIds.isEmpty {
         request.recipients = try await gkLoadPlayers(identifiedBy: payload.recipientIds)
     }
-    if let responseCallback {
+    if let responseSink {
         request.recipientResponseHandler = { player, response in
             guard let json = try? gkEncodeJSON(gkPlayerPayload(from: player)), let cString = gkCString(json) else {
-                responseCallback(refcon, nil, Int32(response.rawValue))
+                responseSink.callback(responseSink.refcon, nil, Int32(response.rawValue))
                 return
             }
             defer { free(cString) }
-            responseCallback(refcon, UnsafePointer(cString), Int32(response.rawValue))
+            responseSink.callback(responseSink.refcon, UnsafePointer(cString), Int32(response.rawValue))
         }
     }
     return request
@@ -90,17 +111,28 @@ public func gk_matchmaker_find_match_json(
     _ requestJSON: UnsafePointer<CChar>?,
     _ callback: GKInviteRecipientResponseCallbackFn?,
     _ refcon: UnsafeMutableRawPointer?,
+    _ retainContext: GKContextCallback?,
+    _ releaseContext: GKContextCallback?,
     _ outMatchPtr: UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let requestJSON = gkCopyString(requestJSON)
+    let responseSink: GKRecipientResponseSink?
+    if let callback, let retainContext, let releaseContext {
+        responseSink = GKRecipientResponseSink(
+            callback: callback,
+            refcon: refcon,
+            retainContext: retainContext,
+            releaseContext: releaseContext
+        )
+    } else {
+        responseSink = nil
+    }
+    return gkBlockOnAsync(
         work: {
             let payload = try gkDecodeJSON(requestJSON, as: GKMatchRequestPayload.self)
-            let request = try await gkMakeMatchRequest(
-                from: payload,
-                responseCallback: callback,
-                refcon: refcon
-            )
+            let request = try await gkMakeMatchRequest(from: payload, responseSink: responseSink)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 GKMatchmaker.shared().findMatch(for: request) { match, error in
                     if let error {
@@ -127,17 +159,28 @@ public func gk_matchmaker_find_hosted_players_json(
     _ requestJSON: UnsafePointer<CChar>?,
     _ callback: GKInviteRecipientResponseCallbackFn?,
     _ refcon: UnsafeMutableRawPointer?,
+    _ retainContext: GKContextCallback?,
+    _ releaseContext: GKContextCallback?,
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let requestJSON = gkCopyString(requestJSON)
+    let responseSink: GKRecipientResponseSink?
+    if let callback, let retainContext, let releaseContext {
+        responseSink = GKRecipientResponseSink(
+            callback: callback,
+            refcon: refcon,
+            retainContext: retainContext,
+            releaseContext: releaseContext
+        )
+    } else {
+        responseSink = nil
+    }
+    return gkBlockOnAsync(
         work: {
             let payload = try gkDecodeJSON(requestJSON, as: GKMatchRequestPayload.self)
-            let request = try await gkMakeMatchRequest(
-                from: payload,
-                responseCallback: callback,
-                refcon: refcon
-            )
+            let request = try await gkMakeMatchRequest(from: payload, responseSink: responseSink)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKPlayer], Error>) in
                 GKMatchmaker.shared().findPlayers(forHostedRequest: request) { players, error in
                     if let error {
@@ -163,13 +206,15 @@ public func gk_matchmaker_find_matched_players_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let requestJSON = gkCopyString(requestJSON)
+    return gkBlockOnAsync(
         work: {
             guard #available(macOS 14.2, *) else {
                 throw GKBridgeError.unavailable("rule-based matched players require macOS 14.2 or newer")
             }
             let payload = try gkDecodeJSON(requestJSON, as: GKMatchRequestPayload.self)
             let request = try await gkMakeMatchRequest(from: payload)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GKMatchedPlayers, Error>) in
                 GKMatchmaker.shared().findMatchedPlayers(request) { matchedPlayers, error in
                     if let error {
@@ -201,16 +246,19 @@ public func gk_matchmaker_add_players_to_match(
     _ requestJSON: UnsafePointer<CChar>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
+    let requestJSON = gkCopyString(requestJSON)
     guard let ptr else {
         gkPopulateError(outError, with: GKBridgeError.unknown("null match pointer"))
         return GK_UNKNOWN
     }
 
+    let box = gk_borrow(ptr, as: GKMatchBox.self)
+
     return gkBlockOnAsync(
         work: {
             let payload = try gkDecodeJSON(requestJSON, as: GKMatchRequestPayload.self)
             let request = try await gkMakeMatchRequest(from: payload)
-            let box = gk_borrow(ptr, as: GKMatchBox.self)
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 GKMatchmaker.shared().addPlayers(to: box.match, matchRequest: request) { error in
                     if let error {
@@ -248,7 +296,8 @@ public func gk_matchmaker_query_player_group_activity(
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int, Error>) in
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int, Error>) in
                 GKMatchmaker.shared().queryPlayerGroupActivity(playerGroup) { activity, error in
                     if let error {
                         continuation.resume(throwing: error)
@@ -274,7 +323,8 @@ public func gk_matchmaker_query_activity(
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int, Error>) in
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int, Error>) in
                 GKMatchmaker.shared().queryActivity { activity, error in
                     if let error {
                         continuation.resume(throwing: error)

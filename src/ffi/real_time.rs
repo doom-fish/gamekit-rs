@@ -5,6 +5,8 @@ unsafe extern "C" {
         request_json: *const c_char,
         callback: Option<unsafe extern "C" fn(*mut c_void, *const c_char, i32)>,
         refcon: *mut c_void,
+        retain: Option<unsafe extern "C" fn(*mut c_void)>,
+        release: Option<unsafe extern "C" fn(*mut c_void)>,
         out_match_ptr: *mut *mut c_void,
         out_error: *mut *mut c_char,
     ) -> i32;
@@ -13,6 +15,8 @@ unsafe extern "C" {
         request_json: *const c_char,
         callback: Option<unsafe extern "C" fn(*mut c_void, *const c_char, i32)>,
         refcon: *mut c_void,
+        retain: Option<unsafe extern "C" fn(*mut c_void)>,
+        release: Option<unsafe extern "C" fn(*mut c_void)>,
         out_json: *mut *mut c_char,
         out_error: *mut *mut c_char,
     ) -> i32;

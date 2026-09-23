@@ -36,7 +36,8 @@ public func gk_score_report_json(
     _ scoresJSON: UnsafePointer<CChar>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let scoresJSON = gkCopyString(scoresJSON)
+    return gkBlockOnAsync(
         work: {
             let inputs = try gkDecodeJSON(scoresJSON, as: [GKScoreInputPayload].self)
             let playersByID = try await gkResolvePlayers(
@@ -53,6 +54,7 @@ public func gk_score_report_json(
                 score.context = input.context
                 return score
             }
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 GKScore.report(scores) { error in
                     if let error {

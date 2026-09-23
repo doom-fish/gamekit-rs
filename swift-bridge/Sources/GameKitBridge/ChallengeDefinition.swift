@@ -68,7 +68,8 @@ public func gk_challenge_definitions_json(
     if #available(macOS 26.0, *) {
         return gkBlockOnAsync(
             work: {
-                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKChallengeDefinition], Error>) in
+                try Task.checkCancellation()
+                return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKChallengeDefinition], Error>) in
                     GKChallengeDefinition.loadChallengeDefinitions { definitions, error in
                         if let error {
                             continuation.resume(throwing: error)
@@ -96,12 +97,14 @@ public func gk_challenge_definition_has_active(
     _ outActive: UnsafeMutablePointer<Bool>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
+    let identifier = gkCopyString(identifier)
     if #available(macOS 26.0, *) {
         return gkBlockOnAsync(
             work: {
                 guard let identifier else {
                     throw GKBridgeError.unknown("missing challenge definition identifier")
                 }
+                try Task.checkCancellation()
                 let definitions = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKChallengeDefinition], Error>) in
                     GKChallengeDefinition.loadChallengeDefinitions { definitions, error in
                         if let error {
@@ -111,9 +114,10 @@ public func gk_challenge_definition_has_active(
                         }
                     }
                 }
-                guard let definition = definitions.first(where: { $0.identifier == String(cString: identifier) }) else {
+                guard let definition = definitions.first(where: { $0.identifier == identifier }) else {
                     throw GKBridgeError.notFound("challenge definition not found")
                 }
+                try Task.checkCancellation()
                 return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
                     definition.hasActiveChallenges { hasActiveChallenges, error in
                         if let error {
@@ -142,12 +146,14 @@ public func gk_challenge_definition_load_image_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
+    let identifier = gkCopyString(identifier)
     if #available(macOS 26.0, *) {
         return gkBlockOnAsync(
             work: {
                 guard let identifier else {
                     throw GKBridgeError.unknown("missing challenge definition identifier")
                 }
+                try Task.checkCancellation()
                 let definitions = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKChallengeDefinition], Error>) in
                     GKChallengeDefinition.loadChallengeDefinitions { definitions, error in
                         if let error {
@@ -157,9 +163,10 @@ public func gk_challenge_definition_load_image_json(
                         }
                     }
                 }
-                guard let definition = definitions.first(where: { $0.identifier == String(cString: identifier) }) else {
+                guard let definition = definitions.first(where: { $0.identifier == identifier }) else {
                     throw GKBridgeError.notFound("challenge definition not found")
                 }
+                try Task.checkCancellation()
                 let image = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<NSImage, Error>) in
                     definition.loadImage { image, error in
                         if let error {

@@ -8,6 +8,7 @@ let GK_NOT_AUTHENTICATED: Int32 = -3
 let GK_FRAMEWORK_ERROR: Int32 = -4
 let GK_NOT_FOUND: Int32 = -5
 let GK_UNAVAILABLE: Int32 = -6
+let GK_WRONG_THREAD: Int32 = -7
 let GK_UNKNOWN: Int32 = -99
 
 private let gkDateFormatter: ISO8601DateFormatter = {
@@ -15,6 +16,8 @@ private let gkDateFormatter: ISO8601DateFormatter = {
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     return formatter
 }()
+
+public typealias GKContextCallback = @convention(c) (UnsafeMutableRawPointer?) -> Void
 
 @inline(__always)
 func gkCString(_ string: String) -> UnsafeMutablePointer<CChar>? {
@@ -46,6 +49,7 @@ enum GKBridgeError: Error, CustomStringConvertible {
     case notAuthenticated(String)
     case notFound(String)
     case unavailable(String)
+    case wrongThread(String)
     case unknown(String)
 
     var statusCode: Int32 {
@@ -58,6 +62,8 @@ enum GKBridgeError: Error, CustomStringConvertible {
             return GK_NOT_FOUND
         case .unavailable:
             return GK_UNAVAILABLE
+        case .wrongThread:
+            return GK_WRONG_THREAD
         case .unknown:
             return GK_UNKNOWN
         }
@@ -69,6 +75,7 @@ enum GKBridgeError: Error, CustomStringConvertible {
              .notAuthenticated(let message),
              .notFound(let message),
              .unavailable(let message),
+             .wrongThread(let message),
              .unknown(let message):
             return message
         }
@@ -103,14 +110,34 @@ func gkEncodeJSON<T: Encodable>(_ value: T) throws -> String {
 }
 
 func gkDecodeJSON<T: Decodable>(_ cString: UnsafePointer<CChar>?, as type: T.Type) throws -> T {
-    guard let cString else {
+    try gkDecodeJSON(gkCopyString(cString), as: type)
+}
+
+func gkDecodeJSON<T: Decodable>(_ string: String?, as type: T.Type) throws -> T {
+    guard let string else {
         throw GKBridgeError.unknown("missing JSON payload")
     }
-    let data = Data(String(cString: cString).utf8)
     do {
-        return try JSONDecoder().decode(T.self, from: data)
+        return try JSONDecoder().decode(T.self, from: Data(string.utf8))
     } catch {
         throw GKBridgeError.unknown("invalid JSON payload: \(error.localizedDescription)")
+    }
+}
+
+func gkCopyString(_ cString: UnsafePointer<CChar>?) -> String? {
+    cString.map { String(cString: $0) }
+}
+
+func gkCopyData(_ bytes: UnsafePointer<UInt8>?, _ count: Int) -> Data {
+    guard let bytes, count > 0 else {
+        return Data()
+    }
+    return Data(bytes: bytes, count: count)
+}
+
+func gkRequireMainThread(_ operation: String) throws {
+    guard Thread.isMainThread else {
+        throw GKBridgeError.wrongThread("\(operation) must be called on the main thread")
     }
 }
 
@@ -144,30 +171,56 @@ func gkPopulateError(
     outError?.pointee = gkCString(message)
 }
 
+private final class GKAsyncResultBox<T> {
+    private let lock = NSLock()
+    private var result: Result<T, Error>?
+
+    func store(_ value: Result<T, Error>) {
+        lock.lock()
+        result = value
+        lock.unlock()
+    }
+
+    func load() -> Result<T, Error>? {
+        lock.lock()
+        defer { lock.unlock() }
+        return result
+    }
+}
+
 func gkBlockOnAsync<T>(
     timeoutSeconds: Int = 30,
     work: @escaping () async throws -> T,
-    onSuccess: @escaping (T) -> Void,
-    onError: @escaping (Error) -> Void
+    onSuccess: (T) -> Void,
+    onError: (Error) -> Void
 ) -> Int32 {
-    let semaphore = DispatchSemaphore(value: 0)
-    var result: Result<T, Error>?
+    guard !Thread.isMainThread else {
+        let error = GKBridgeError.wrongThread(
+            "synchronous GameKit calls cannot run on the main thread, which delivers their results; call them from another thread or use the async API"
+        )
+        onError(error)
+        return error.statusCode
+    }
 
-    Task {
+    let semaphore = DispatchSemaphore(value: 0)
+    let box = GKAsyncResultBox<T>()
+
+    let task = Task {
         do {
-            result = .success(try await work())
+            box.store(.success(try await work()))
         } catch {
-            result = .failure(error)
+            box.store(.failure(error))
         }
         semaphore.signal()
     }
 
     guard semaphore.wait(timeout: .now() + .seconds(timeoutSeconds)) == .success else {
+        task.cancel()
         onError(GKBridgeError.timedOut("GameKit operation timed out after \(timeoutSeconds) seconds"))
         return GK_TIMED_OUT
     }
 
-    switch result {
+    switch box.load() {
     case .success(let value):
         onSuccess(value)
         return GK_OK

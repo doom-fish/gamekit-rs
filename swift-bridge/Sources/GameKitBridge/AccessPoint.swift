@@ -108,7 +108,8 @@ public func gk_access_point_trigger(
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
-            await withCheckedContinuation { continuation in
+            try Task.checkCancellation()
+            return await withCheckedContinuation { continuation in
                 GKAccessPoint.shared.trigger {
                     continuation.resume(returning: ())
                 }
@@ -128,7 +129,8 @@ public func gk_access_point_trigger_state(
 ) -> Int32 {
     gkBlockOnAsync(
         work: {
-            await withCheckedContinuation { continuation in
+            try Task.checkCancellation()
+            return await withCheckedContinuation { continuation in
                 GKAccessPoint.shared.trigger(state: gkAccessPointState(from: state)) {
                     continuation.resume(returning: ())
                 }

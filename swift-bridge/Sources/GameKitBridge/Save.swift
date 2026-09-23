@@ -61,12 +61,14 @@ public func gk_saved_game_load_data_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let savedGameJSON = gkCopyString(savedGameJSON)
+    return gkBlockOnAsync(
         work: {
             let payload = try gkDecodeJSON(savedGameJSON, as: GKSavedGamePayload.self)
             guard let savedGame = try await gkFindSavedGames(matching: [payload]).first else {
                 throw GKBridgeError.notFound("saved game not found")
             }
+            try Task.checkCancellation()
             let data = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
                 savedGame.loadData { data, error in
                     if let error {
@@ -95,14 +97,17 @@ public func gk_saved_game_save_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let name = gkCopyString(name)
+    let data = gkCopyData(data, len)
+    return gkBlockOnAsync(
         work: {
             guard let name else {
                 throw GKBridgeError.unknown("missing saved game name")
             }
-            let payload = data.map { Data(bytes: $0, count: len) } ?? Data()
+            let payload = data
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
-                GKLocalPlayer.local.saveGameData(payload, withName: String(cString: name)) { savedGame, error in
+                GKLocalPlayer.local.saveGameData(payload, withName: name) { savedGame, error in
                     if let error {
                         continuation.resume(throwing: error)
                     } else if let savedGame {
@@ -127,13 +132,15 @@ public func gk_saved_game_delete(
     _ name: UnsafePointer<CChar>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let name = gkCopyString(name)
+    return gkBlockOnAsync(
         work: {
             guard let name else {
                 throw GKBridgeError.unknown("missing saved game name")
             }
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
-                GKLocalPlayer.local.deleteSavedGames(withName: String(cString: name)) { error in
+                GKLocalPlayer.local.deleteSavedGames(withName: name) { error in
                     if let error {
                         continuation.resume(throwing: error)
                     } else {
@@ -157,11 +164,14 @@ public func gk_saved_game_resolve_conflicts_json(
     _ outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    gkBlockOnAsync(
+    let savedGamesJSON = gkCopyString(savedGamesJSON)
+    let data = gkCopyData(data, len)
+    return gkBlockOnAsync(
         work: {
             let payloads = try gkDecodeJSON(savedGamesJSON, as: [GKSavedGamePayload].self)
             let conflictingGames = try await gkFindSavedGames(matching: payloads)
-            let mergedData = data.map { Data(bytes: $0, count: len) } ?? Data()
+            let mergedData = data
+            try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKSavedGame], Error>) in
                 GKLocalPlayer.local.resolveConflictingSavedGames(conflictingGames, with: mergedData) { savedGames, error in
                     if let error {
