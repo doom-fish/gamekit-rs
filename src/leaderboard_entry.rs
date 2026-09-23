@@ -144,14 +144,14 @@ const fn to_ns_range(range: Range<usize>) -> (usize, usize) {
     (location, length)
 }
 
-const fn player_scope_to_i32(scope: PlayerScope) -> i32 {
+pub(crate) const fn player_scope_to_i32(scope: PlayerScope) -> i32 {
     match scope {
         PlayerScope::Global => 0,
         PlayerScope::FriendsOnly => 1,
     }
 }
 
-const fn time_scope_to_i32(scope: TimeScope) -> i32 {
+pub(crate) const fn time_scope_to_i32(scope: TimeScope) -> i32 {
     match scope {
         TimeScope::Today => 0,
         TimeScope::Week => 1,

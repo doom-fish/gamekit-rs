@@ -37,6 +37,7 @@ pub(crate) mod utils;
 
 pub use access_point::{
     AccessPoint, AccessPointFrame, AccessPointLocation, AccessPointSnapshot, AccessPointState,
+    AccessPointTrigger,
 };
 pub use achievement::{Achievement, AchievementDescription};
 pub use base_player::BasePlayer;
@@ -83,6 +84,7 @@ pub use turn_based::{
 pub mod prelude {
     pub use crate::access_point::{
         AccessPoint, AccessPointFrame, AccessPointLocation, AccessPointSnapshot, AccessPointState,
+        AccessPointTrigger,
     };
     pub use crate::achievement::{Achievement, AchievementDescription};
     pub use crate::base_player::BasePlayer;

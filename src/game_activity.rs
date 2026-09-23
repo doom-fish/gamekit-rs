@@ -64,7 +64,7 @@ pub struct GameActivitySnapshot {
 
 /// A live `GKGameActivity` instance.
 pub struct GameActivity {
-    ptr: *mut c_void,
+    pub(crate) ptr: *mut c_void,
 }
 
 /// SAFETY: `GKGameActivity` is an Obj-C object retained by the `GameKit`
