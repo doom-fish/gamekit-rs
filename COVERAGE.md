@@ -57,7 +57,7 @@ Some GameKit surface is not universally available:
 
 ## Remaining known gaps
 
-v0.2.3 closes every audited top-level macOS-available GameKit symbol in `COVERAGE_AUDIT.md`. The crate is still not a literal wrapper of every Apple member-level API. The main intentionally-unwrapped areas are:
+`COVERAGE_AUDIT.md` counts top-level symbols only, and two of them (`GKConnectionState`, `GKTransportType`) remain gaps. The crate is also not a literal wrapper of every Apple member-level API. The main intentionally-unwrapped areas are:
 
 - some image/photo convenience loaders outside `LeaderboardSet::load_image_data()` and the newer activity/challenge metadata flows
 - newer nearby-player, queue/group-activity, and invite-cancellation helpers on `GKMatchmaker`
