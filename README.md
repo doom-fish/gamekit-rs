@@ -4,7 +4,7 @@ Safe Rust bindings for Apple's `GameKit` framework on macOS.
 
 ## What is covered in v0.8.9
 
-`gamekit-rs` now reaches 100% of the audited top-level macOS-available `GameKit` surface in [`COVERAGE_AUDIT.md`](COVERAGE_AUDIT.md) and exposes logical modules for:
+`gamekit-rs` covers 65 of the 67 audited top-level macOS-available `GameKit` symbols in [`COVERAGE_AUDIT.md`](COVERAGE_AUDIT.md) (the two gaps are enums used only by the deprecated `GKGameSession` API) and exposes logical modules for:
 
 - `BasePlayer`, `Player`, and `LocalPlayer`
 - `LocalPlayerListener`
@@ -18,7 +18,7 @@ Safe Rust bindings for Apple's `GameKit` framework on macOS.
 - `DialogController`, including legacy Game Center dismissal callbacks
 - `GameActivity`
 - notification banners
-- `AccessPoint`
+- `AccessPoint`, including every `GKAccessPoint` trigger variant through `AccessPointTrigger`
 - `ChallengeDefinition`
 - `Score`
 - `SavedGame`
@@ -59,6 +59,17 @@ See [`COVERAGE.md`](COVERAGE.md) for the audited SDK coverage table, deprecated 
 - macOS 12.0+
 - Xcode / Swift toolchain
 - macOS 26 SDK if you want `ChallengeDefinition` and `GameActivity` support
+
+The Swift bridge is built for macOS 12.0 even with the macOS 26 SDK. APIs from newer releases check the running system and return `GameKitError::Unavailable` on older versions.
+
+## Threading
+
+- Synchronous calls wait for `GameKit`, which delivers its answers on the main thread. On the main thread they return `GameKitError::WrongThread` instead of deadlocking, so call them from another thread or use the `async` feature.
+- `MatchmakerViewController`, `TurnBasedMatchmakerViewController`, `SignInViewController` and `DialogController` presentation are `AppKit` UI. Create, present and dismiss them on the main thread; the view controllers are not `Send`, and calls from other threads return `GameKitError::WrongThread`.
+- `GameKit` cannot look up recipients while a matchmaking view controller is created on the main thread, so a request with `recipient_ids` returns `GameKitError::Unavailable`. Invite players from the controller's UI, or use `Matchmaker` from another thread.
+- `AccessPoint::trigger`, `trigger_state` and `trigger_target` return immediately. Pass a completion to `trigger_target` to learn when Game Center closes.
+- When `GameKit` asks the player to sign in, `LocalPlayer::sign_in_view_controller()` returns the view controller it provided, ready to present on the main thread.
+- Friend and player lookups need a bundle identifier. `GameKit` raises an exception without one, so these calls return `GameKitError::Unavailable` instead.
 
 ## Usage
 

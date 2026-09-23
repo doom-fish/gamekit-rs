@@ -3,15 +3,15 @@
 > Scope: top-level macOS-available classes, protocols, enums, and exported constants in `GameKit.framework`. Method-level members, category-only extensions, and deprecated typedef aliases (for example `GKInviteeResponse`) are excluded from the counts. Legacy non-macOS symbols surfaced by the umbrella header (`GKPeerPicker*`, `GKVoiceChatService`, `GKVoiceChatServiceError`, `GKSessionError`, `GKGameSessionSharingViewController*`) are also excluded from the counts; deprecated ones are documented below as out-of-scope **EXEMPT** items. If Apple left a symbol non-deprecated even though it mainly serves a deprecated type (for example `GKGameCenterControllerDelegate`), it remains a **GAP**.
 
 SDK_PUBLIC_SYMBOLS: 101
-VERIFIED: 63
-GAPS: 0
-EXEMPT: 38
-COVERAGE_PCT: 100.0%
+VERIFIED: 65
+GAPS: 2
+EXEMPT: 34
+COVERAGE_PCT: 97.0%
 
 ## 🟢 VERIFIED
 | Symbol | Kind | Header | Wrapped by |
 | --- | --- | --- | --- |
-| GKAccessPoint | class | `GKAccessPoint.h` | `AccessPoint` |
+| GKAccessPoint | class | `GKAccessPoint.h` | `AccessPoint`, `AccessPointTrigger` (all thirteen trigger variants) |
 | GKAccessPointLocation | enum | `GKAccessPoint.h` | `AccessPointLocation` |
 | GKAchievement | class | `GKAchievement.h` | `Achievement` |
 | GKAchievementDescription | class | `GKAchievementDescription.h` | `AchievementDescription`, `Achievement::load_descriptions`, `AsyncAchievement::load_descriptions` |
@@ -39,7 +39,7 @@ COVERAGE_PCT: 100.0%
 | GKLeaderboardSet | class | `GKLeaderboardSet.h` | `LeaderboardSet`, `LeaderboardSet::load_*`, `AsyncLeaderboardSet::{load_leaderboards, load_image_data}` |
 | GKLeaderboardTimeScope | enum | `GKLeaderboard.h` | `TimeScope` |
 | GKLeaderboardType | enum | `GKLeaderboard.h` | `LeaderboardType` |
-| GKLocalPlayer | class | `GKLocalPlayer.h` | `LocalPlayer`, `AuthObserver` |
+| GKLocalPlayer | class | `GKLocalPlayer.h` | `LocalPlayer`, `AuthObserver`, `SignInViewController` |
 | GKLocalPlayerListener | protocol | `GKLocalPlayer.h` | `LocalPlayer::register_listener`, `LocalPlayerListener` |
 | GKMatch | class | `GKMatch.h` | `Match` |
 | GKMatchDelegate | protocol | `GKMatch.h` | `MatchDelegate` via `Match::set_delegate` |
@@ -51,6 +51,7 @@ COVERAGE_PCT: 100.0%
 | GKMatchmakerViewController | class | `GKMatchmakerViewController.h` | `MatchmakerViewController` |
 | GKMatchmakerViewControllerDelegate | protocol | `GKMatchmakerViewController.h` | `MatchmakerViewControllerDelegate` via `MatchmakerViewController::set_delegate` |
 | GKMatchmakingMode | enum | `GKMatchmakerViewController.h` | `MatchmakingMode` |
+| GKNotificationBanner | class | `GKNotificationBanner.h` | `NotificationBanner` (deprecated since macOS 14.0) |
 | GKPhotoSize | enum | `GKPlayer.h` | `PhotoSize` |
 | GKPlayer | class | `GKPlayer.h` | `Player` |
 | GKPlayerAuthenticationDidChangeNotificationName | constant | `GKLocalPlayer.h` | `PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME` |
@@ -60,6 +61,7 @@ COVERAGE_PCT: 100.0%
 | GKReleaseState | enum | `GKReleaseState.h` | `ChallengeDefinition.release_state` (stringified), `GameActivityDefinition.release_state` |
 | GKSavedGame | class | `GKSavedGame.h` | `SavedGame` |
 | GKSavedGameListener | protocol | `GKSavedGameListener.h` | `LocalPlayerListener` via saved-game `LocalPlayerEvent` variants |
+| GKScore | class | `GKScore.h` | `Score::report_all` (deprecated since macOS 11.0) |
 | GKTurnBasedEventListener | protocol | `GKTurnBasedMatch.h` | `LocalPlayerListener` via turn/exchange `LocalPlayerEvent` variants |
 | GKTurnBasedExchange | class | `GKTurnBasedMatch.h` | `TurnBasedExchange` |
 | GKTurnBasedExchangeReply | class | `GKTurnBasedMatch.h` | `TurnBasedExchangeReply` |
@@ -76,7 +78,10 @@ COVERAGE_PCT: 100.0%
 | GKViewController | protocol | `GKDialogController.h` | `DialogController::present_*` with Game Center view-controller wrappers |
 
 ## 🔴 GAPS
-None.
+| Symbol | Kind | Header | Notes |
+| --- | --- | --- | --- |
+| GKConnectionState | enum | `GKGameSession.h` | Not deprecated, but only used by the deprecated `GKGameSession` API, which is not wrapped. |
+| GKTransportType | enum | `GKGameSession.h` | Not deprecated, but only used by the deprecated `GKGameSession` API, which is not wrapped. |
 
 ## ⏭️ EXEMPT
 | Symbol | Kind | Header | Reason | SDK attribute |
@@ -92,7 +97,6 @@ None.
 | GKChallengesViewController | class | `GKChallengesViewController.h` | No longer supported legacy challenges UI. | `API_DEPRECATED(... macos(10.8,10.10))` |
 | GKChallengesViewControllerDelegate | protocol | `GKChallengesViewController.h` | Delegate for deprecated challenges UI. | `API_DEPRECATED(... macos(10.8,15.4))` |
 | GKCloudPlayer | class | `GKCloudPlayer.h` | Part of the deprecated `GKGameSession` surface. | `API_DEPRECATED_WITH_REPLACEMENT(... macos(10.12,10.14))` |
-| GKConnectionState | enum | `GKGameSession.h` | Part of the deprecated `GKGameSession` surface. | `API_DEPRECATED(... macos(10.12,10.14))` |
 | GKFriendRequestComposeViewController | class | `GKFriendRequestComposeViewController.h` | No longer supported legacy friend-request UI. | `API_DEPRECATED(... macos(10.8,10.12))` |
 | GKFriendRequestComposeViewControllerDelegate | protocol | `GKFriendRequestComposeViewController.h` | Delegate for deprecated friend-request UI. | `API_DEPRECATED(... macos(10.8,10.12))` |
 | GKGameCenterViewController | class | `GKGameCenterViewController.h` | Replaced by `GKAccessPoint`. | `API_DEPRECATED_WITH_REPLACEMENT(... macos(10.9,26.0))` |
@@ -103,16 +107,13 @@ None.
 | GKGameSessionEventListener | protocol | `GKGameSessionEventListener.h` | Replaced by `GKLocalPlayerListener`. | `API_DEPRECATED_WITH_REPLACEMENT(... macos(10.12,10.14))` |
 | GKLeaderboardViewController | class | `GKLeaderboardViewController.h` | Replaced by `GKGameCenterViewController`. | `API_DEPRECATED_WITH_REPLACEMENT(... macos(10.8,10.10))` |
 | GKLeaderboardViewControllerDelegate | protocol | `GKLeaderboardViewController.h` | Delegate for deprecated leaderboard UI. | `API_DEPRECATED_WITH_REPLACEMENT(... macos(10.8,10.10))` |
-| GKNotificationBanner | class | `GKNotificationBanner.h` | Replaced by UserNotifications or custom UI. | `API_DEPRECATED(... macos(10.8,14.0))` |
 | GKPeerConnectionState | enum | `GKPublicConstants.h` | Legacy `GKSession` networking enum. | `API_DEPRECATED(... macos(10.8,10.10))` |
-| GKScore | class | `GKScore.h` | Replaced by `GKLeaderboard.Entry` and `GKLeaderboardScore`. | `API_DEPRECATED_WITH_REPLACEMENT(... macos(10.8,11.0))` |
 | GKScoreChallenge | class | `GKChallenge.h` | Replaced by developer-defined challenges. | `API_DEPRECATED_WITH_REPLACEMENT(... macos(10.8,26.0))` |
 | GKSendDataMode | enum | `GKPublicConstants.h` | Legacy `GKSession` networking enum. | `API_DEPRECATED(... macos(10.8,10.10))` |
 | GKSession | class | `GKSession.h` | Replaced by `GKMatch`. | `API_DEPRECATED_WITH_REPLACEMENT(... macos(10.8,10.10))` |
 | GKSessionDelegate | protocol | `GKPublicProtocols.h` | Replaced by `GKMatchDelegate`. | `API_DEPRECATED_WITH_REPLACEMENT(... macos(10.8,10.10))` |
 | GKSessionErrorDomain | constant | `GKSessionError.h` | Legacy `GKSession` error domain. | `API_DEPRECATED(... macos(10.10,15.4))` |
 | GKSessionMode | enum | `GKPublicConstants.h` | Legacy `GKSession` networking enum. | `API_DEPRECATED(... macos(10.8,10.10))` |
-| GKTransportType | enum | `GKGameSession.h` | Part of the deprecated `GKGameSession` surface. | `API_DEPRECATED(... macos(10.12,10.14))` |
 | GKTurnBasedEventHandler | class | `GKTurnBasedMatch.h` | Replaced by `GKLocalPlayer` listener registration. | `API_DEPRECATED_WITH_REPLACEMENT(... macos(10.8,10.10))` |
 | GKTurnBasedEventHandlerDelegate | protocol | `GKTurnBasedMatch.h` | Delegate for deprecated turn-based event handling. | `API_DEPRECATED_WITH_REPLACEMENT(... macos(10.8,10.10))` |
 | GKVoiceChat | class | `GKVoiceChat.h` | No longer supported. | `API_DEPRECATED(... macos(10.8,15.0))` |

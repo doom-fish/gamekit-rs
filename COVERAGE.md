@@ -1,6 +1,6 @@
 # GameKit coverage audit
 
-`gamekit-rs` v0.8.9 targets the GameKit APIs that are practical to expose from a safe Rust surface on macOS and now reaches 100% of the audited top-level macOS-available surface tracked in [`COVERAGE_AUDIT.md`](COVERAGE_AUDIT.md). The crate still mirrors the `screencapturekit-rs` bridge layout:
+`gamekit-rs` v0.8.9 targets the GameKit APIs that are practical to expose from a safe Rust surface on macOS and covers 65 of the 67 audited top-level macOS-available symbols tracked in [`COVERAGE_AUDIT.md`](COVERAGE_AUDIT.md); the gaps are `GKConnectionState` and `GKTransportType`, which only the deprecated `GKGameSession` API uses. The crate still mirrors the `screencapturekit-rs` bridge layout:
 
 - one Swift bridge file per logical area
 - `@_cdecl` C-callable entry points
@@ -13,7 +13,7 @@
 | Area | Apple surface audited | Rust surface in v0.8.9 | Status |
 | --- | --- | --- | --- |
 | Error | `GKErrorCode`, `GKErrorDomain` | `ErrorCode`, `ERROR_DOMAIN`, `GameKitFrameworkError::error_code` | Covered |
-| LocalPlayer | `GKLocalPlayer` snapshot, auth handler, recent players, challengeable friends, identity verification signature, friends authorization, friends lookup, friend request presentation, auth-change notification constant | `LocalPlayer`, `AuthObserver`, `FriendsAuthorizationStatus`, `IdentityVerificationSignature`, `PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME` | Broad coverage of local-player data and exported constants |
+| LocalPlayer | `GKLocalPlayer` snapshot, auth handler, recent players, challengeable friends, identity verification signature, friends authorization, friends lookup, friend request presentation, auth-change notification constant | `LocalPlayer`, `AuthObserver`, `SignInViewController`, `FriendsAuthorizationStatus`, `IdentityVerificationSignature`, `PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME` | Broad coverage of local-player data and exported constants |
 | LocalPlayerListener | `GKLocalPlayerListener`, `GKInviteEventListener`, `GKTurnBasedEventListener`, `GKSavedGameListener`, `GKGameActivityListener` | `LocalPlayer::register_listener`, `LocalPlayerListener`, `LocalPlayerEvent` | Broad callback coverage for invite, turn-based, saved-game, and game-activity events |
 | Player | `GKBasePlayer`, `GKPlayer`, `GKPhotoSize`, player notification constants | `BasePlayer`, `Player`, `PhotoSize`, `PLAYER_DID_CHANGE_NOTIFICATION_NAME`, `PLAYER_ID_NO_LONGER_AVAILABLE` | Covered for identity snapshots and exported constants; photo-loading members remain intentionally unwrapped |
 | Leaderboard | `GKLeaderboard` load, recurring metadata, score submission | `Leaderboard`, `LeaderboardType`, `submit_score`, `submit_local_score`, `load_previous_occurrence` | Broad coverage of load + submit flows |
@@ -23,10 +23,10 @@
 | Match | `GKMatch` players, connection state, data send, callbacks, rematch, host selection | `Match`, `MatchEvent`, `MatchDelegate`, `ConnectionState`, `SendDataMode` | Covered for the primary live-match surface |
 | TurnBased | `GKTurnBasedMatch`, participants, exchanges, reminders, merged saves, quit/end flows, timeout constants | `TurnBasedMatch`, `TurnBasedParticipant`, `TurnBasedExchange`, `TurnBasedExchangeReply`, related enums/request types, `TURN_*`, `EXCHANGE_*` constants | Broad coverage |
 | RealTime | `GKMatchmaker`, `GKInviteRecipientResponse`, `GKMatchedPlayers` | `Matchmaker`, `MatchRequest`, `MatchType`, `InviteRecipientResponse`, `MatchedPlayers` | Covered for the primary programmatic matchmaking surface; nearby-player browsing, queue activity, and invite cancellation remain member-level omissions |
-| MatchmakingUI | `GKDialogController`, `GKInvite`, `GKMatchmakerViewController`, `GKTurnBasedMatchmakerViewController`, delegates, matchmaking mode, legacy `GKGameCenterControllerDelegate` | `DialogController`, `GameCenterControllerDelegate`, `GameCenterViewState`, `Invite`, `MatchmakerViewController`, `TurnBasedMatchmakerViewController`, `MatchmakingMode` | Covered for AppKit Game Center UI flows, including legacy dashboard dismissal callbacks |
+| MatchmakingUI | `GKDialogController`, `GKInvite`, `GKMatchmakerViewController`, `GKTurnBasedMatchmakerViewController`, delegates, matchmaking mode, legacy `GKGameCenterControllerDelegate` | `DialogController`, `GameCenterControllerDelegate`, `GameCenterViewState`, `Invite`, `MatchmakerViewController`, `TurnBasedMatchmakerViewController`, `MatchmakingMode` | Covered for AppKit Game Center UI flows on the main thread, including legacy dashboard dismissal callbacks; requests with recipients are refused because `GameKit` cannot resolve them there |
 | GameActivity | `GKGameActivity`, `GKGameActivityDefinition`, play style/state metadata, definition lookup, activity lifecycle, image loading | `GameActivity`, `GameActivityDefinition`, `GameActivitySnapshot`, `GameActivityPlayStyle`, `GameActivityState` | SDK/OS-gated: available only when compiled with a macOS 26 SDK and run on macOS 26+ |
 | Notification | `GKNotificationBanner` | `NotificationBanner` | Covered via deprecated Apple API |
-| AccessPoint | `GKAccessPoint` snapshot, activation, location, trigger, trigger(state:)` | `AccessPoint`, `AccessPointSnapshot`, `AccessPointLocation`, `AccessPointState` | Core coverage; newer state-trigger variants are not wrapped |
+| AccessPoint | `GKAccessPoint` snapshot, activation, location, and all thirteen trigger variants | `AccessPoint`, `AccessPointSnapshot`, `AccessPointLocation`, `AccessPointState`, `AccessPointTrigger` | Covered; triggers return immediately, and variants from macOS 15, 26 and 26.2 return `GameKitError::Unavailable` on older systems |
 | ChallengeDefinition | `GKChallengeDefinition` load + active-challenge query | `ChallengeDefinition`, `ChallengeDefinition::load_image_data`, `ChallengeDurationOption`, `AsyncChallengeDefinition::load_image_data` | SDK/OS-gated: available only when compiled with a macOS 26 SDK and run on macOS 26+ |
 | Score | legacy `GKScore` reporting | `Score`, `Score::new_local`, `Score::for_player_game_id`, `Score::report_all` | Covered via deprecated Apple API |
 | Save | `GKSavedGame` list, load data, save, delete, resolve conflicts | `SavedGame` | Broad coverage; saved-game listener callbacks are exposed through `LocalPlayerListener` |
@@ -43,10 +43,17 @@ These APIs are still available in GameKit and are often needed when interoperati
 
 Some GameKit surface is not universally available:
 
-- `GKChallengeDefinition` and `GKGameActivity` are compiled only when the detected macOS SDK is 26 or newer.
+- `GKChallengeDefinition` and `GKGameActivity` are compiled only when the detected macOS SDK is 26 or newer. The bridge still targets macOS 12.0; these APIs check the running system.
+- `AccessPointTrigger` targets need macOS 15.0 (achievement, leaderboard set, leaderboard, player), macOS 26.0 (play together, challenges, challenge and game activity definitions, game activity, friending) or macOS 26.2 (Arcade).
 - `MatchedPlayers` requires macOS 14.2 or newer at runtime.
 - `DialogController::present_game_center_state(GameCenterViewState::LocalPlayerFriendsList, ...)` requires macOS 12.0 or newer.
 - At runtime, the bridge returns `GameKitError::Unavailable` when a gated API is called on an older SDK or OS.
+- Friend and player lookups return `GameKitError::Unavailable` when the process has no bundle identifier, because `GameKit` raises an exception in that case.
+
+## Threading
+
+- Synchronous calls return `GameKitError::WrongThread` on the main thread, where `GameKit` delivers their results; call them from another thread or use the `async` feature.
+- Matchmaking view controllers, the sign-in view controller and `DialogController` presentation run on the main thread only and return `GameKitError::WrongThread` elsewhere.
 
 ## Remaining known gaps
 
@@ -54,6 +61,6 @@ v0.2.3 closes every audited top-level macOS-available GameKit symbol in `COVERAG
 
 - some image/photo convenience loaders outside `LeaderboardSet::load_image_data()` and the newer activity/challenge metadata flows
 - newer nearby-player, queue/group-activity, and invite-cancellation helpers on `GKMatchmaker`
-- a few access-point, challenge-definition, and leaderboard-set convenience helpers added in the latest SDKs
+- a few challenge-definition and leaderboard-set convenience helpers added in the latest SDKs
 
 Those member-level omissions are isolated so future releases can extend the bridge without revisiting the overall crate structure.
