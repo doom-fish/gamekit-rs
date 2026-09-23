@@ -1,9 +1,10 @@
 use core::ffi::{c_char, c_void};
 use std::ffi::CStr;
+use std::sync::{Mutex, PoisonError};
 
 use serde::Deserialize;
 
-use doom_fish_utils::panic_safe::catch_user_panic;
+use doom_fish_utils::callback_context::CallbackContext;
 
 use crate::{
     ffi, private, GameKitError, GameKitFrameworkError, Match, MatchRequest, Player,
@@ -45,16 +46,16 @@ pub enum GameCenterViewState {
     LocalPlayerFriendsList,
 }
 
+type GameCenterHandler = Mutex<Box<dyn Fn() + Send + 'static>>;
+type MatchmakerHandler = Mutex<Box<dyn Fn(MatchmakerViewControllerEvent) + Send + 'static>>;
+type TurnBasedMatchmakerHandler =
+    Mutex<Box<dyn Fn(TurnBasedMatchmakerViewControllerEvent) + Send + 'static>>;
+
 /// Guard for a legacy Game Center controller delegate registration.
 pub struct GameCenterControllerDelegate {
     controller_ptr: *mut c_void,
-    handler_ptr: *mut Box<dyn Fn() + Send + 'static>,
+    context: CallbackContext<GameCenterHandler>,
 }
-
-/// SAFETY: holds raw pointers to an Obj-C controller and a heap-allocated
-/// handler; access is serialised through the `GameKit` UI thread and the
-/// thread that drops this guard, never concurrent.
-unsafe impl Send for GameCenterControllerDelegate {}
 
 /// Events emitted by `GKMatchmakerViewControllerDelegate`.
 #[derive(Debug)]
@@ -69,23 +70,14 @@ pub enum MatchmakerViewControllerEvent {
 /// Guard for a matchmaker view controller delegate registration.
 pub struct MatchmakerViewControllerDelegate {
     controller_ptr: *mut c_void,
-    handler_ptr: *mut Box<dyn Fn(MatchmakerViewControllerEvent) + Send + 'static>,
+    token: u64,
+    context: CallbackContext<MatchmakerHandler>,
 }
-
-/// SAFETY: holds raw pointers to an Obj-C controller and a heap-allocated
-/// handler; access is serialised through the `GameKit` UI thread and the
-/// thread that drops this guard, never concurrent.
-unsafe impl Send for MatchmakerViewControllerDelegate {}
 
 /// `AppKit` Game Center real-time matchmaking UI controller.
 pub struct MatchmakerViewController {
     ptr: *mut c_void,
 }
-
-/// SAFETY: `GKMatchmakerViewController` is an Obj-C object; the `ptr` is not
-/// aliased mutably outside of the Obj-C runtime and is safe to transfer across
-/// thread boundaries.
-unsafe impl Send for MatchmakerViewController {}
 
 /// Events emitted by `GKTurnBasedMatchmakerViewControllerDelegate`.
 #[derive(Debug)]
@@ -97,23 +89,14 @@ pub enum TurnBasedMatchmakerViewControllerEvent {
 /// Guard for a turn-based matchmaker view controller delegate registration.
 pub struct TurnBasedMatchmakerViewControllerDelegate {
     controller_ptr: *mut c_void,
-    handler_ptr: *mut Box<dyn Fn(TurnBasedMatchmakerViewControllerEvent) + Send + 'static>,
+    token: u64,
+    context: CallbackContext<TurnBasedMatchmakerHandler>,
 }
-
-/// SAFETY: holds raw pointers to an Obj-C controller and a heap-allocated
-/// handler; access is serialised through the `GameKit` UI thread and the
-/// thread that drops this guard, never concurrent.
-unsafe impl Send for TurnBasedMatchmakerViewControllerDelegate {}
 
 /// `AppKit` Game Center turn-based matchmaking UI controller.
 pub struct TurnBasedMatchmakerViewController {
     ptr: *mut c_void,
 }
-
-/// SAFETY: `GKTurnBasedMatchmakerViewController` is an Obj-C object; the `ptr`
-/// is not aliased mutably outside of the Obj-C runtime and is safe to transfer
-/// across thread boundaries.
-unsafe impl Send for TurnBasedMatchmakerViewController {}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -218,8 +201,8 @@ impl DialogController {
         state: GameCenterViewState,
         handler: F,
     ) -> Result<GameCenterControllerDelegate, GameKitError> {
-        let boxed: Box<dyn Fn() + Send + 'static> = Box::new(handler);
-        let handler_ptr: *mut Box<dyn Fn() + Send + 'static> = Box::into_raw(Box::new(boxed));
+        let context: CallbackContext<GameCenterHandler> =
+            CallbackContext::new(Mutex::new(Box::new(handler)));
 
         unsafe {
             let mut out_ptr: *mut c_void = std::ptr::null_mut();
@@ -227,17 +210,18 @@ impl DialogController {
             let status = ffi::gk_dialog_present_game_center_view(
                 state.to_raw(),
                 Some(game_center_trampoline),
-                handler_ptr.cast(),
+                context.as_ptr(),
+                Some(CallbackContext::<GameCenterHandler>::RETAIN),
+                Some(CallbackContext::<GameCenterHandler>::RELEASE),
                 &mut out_ptr,
                 &mut out_error,
             );
             if status != ffi::status::OK {
-                drop(Box::from_raw(handler_ptr));
                 return Err(private::error_from_status(status, out_error));
             }
             Ok(GameCenterControllerDelegate {
                 controller_ptr: out_ptr,
-                handler_ptr,
+                context,
             })
         }
     }
@@ -420,21 +404,22 @@ impl MatchmakerViewController {
         &self,
         handler: F,
     ) -> MatchmakerViewControllerDelegate {
-        let boxed: Box<dyn Fn(MatchmakerViewControllerEvent) + Send + 'static> = Box::new(handler);
-        let handler_ptr: *mut Box<dyn Fn(MatchmakerViewControllerEvent) + Send + 'static> =
-            Box::into_raw(Box::new(boxed));
-
-        unsafe {
+        let context: CallbackContext<MatchmakerHandler> =
+            CallbackContext::new(Mutex::new(Box::new(handler)));
+        let token = unsafe {
             ffi::gk_matchmaker_view_controller_set_callbacks(
                 self.ptr,
                 Some(matchmaker_view_controller_trampoline),
-                handler_ptr.cast(),
-            );
-        }
+                context.as_ptr(),
+                Some(CallbackContext::<MatchmakerHandler>::RETAIN),
+                Some(CallbackContext::<MatchmakerHandler>::RELEASE),
+            )
+        };
 
         MatchmakerViewControllerDelegate {
             controller_ptr: unsafe { ffi::gk_matchmaker_view_controller_retain(self.ptr) },
-            handler_ptr,
+            token,
+            context,
         }
     }
 
@@ -453,10 +438,10 @@ crate::utils::retained::gk_retained!(
 
 impl Drop for MatchmakerViewControllerDelegate {
     fn drop(&mut self) {
+        self.context.deactivate();
         unsafe {
-            ffi::gk_matchmaker_view_controller_clear_callbacks(self.controller_ptr);
+            ffi::gk_matchmaker_view_controller_clear_callbacks(self.controller_ptr, self.token);
             ffi::gk_matchmaker_view_controller_release(self.controller_ptr);
-            drop(Box::from_raw(self.handler_ptr));
         }
     }
 }
@@ -526,24 +511,24 @@ impl TurnBasedMatchmakerViewController {
         &self,
         handler: F,
     ) -> TurnBasedMatchmakerViewControllerDelegate {
-        let boxed: Box<dyn Fn(TurnBasedMatchmakerViewControllerEvent) + Send + 'static> =
-            Box::new(handler);
-        let handler_ptr: *mut Box<dyn Fn(TurnBasedMatchmakerViewControllerEvent) + Send + 'static> =
-            Box::into_raw(Box::new(boxed));
-
-        unsafe {
+        let context: CallbackContext<TurnBasedMatchmakerHandler> =
+            CallbackContext::new(Mutex::new(Box::new(handler)));
+        let token = unsafe {
             ffi::gk_turn_based_matchmaker_view_controller_set_callbacks(
                 self.ptr,
                 Some(turn_based_matchmaker_view_controller_trampoline),
-                handler_ptr.cast(),
-            );
-        }
+                context.as_ptr(),
+                Some(CallbackContext::<TurnBasedMatchmakerHandler>::RETAIN),
+                Some(CallbackContext::<TurnBasedMatchmakerHandler>::RELEASE),
+            )
+        };
 
         TurnBasedMatchmakerViewControllerDelegate {
             controller_ptr: unsafe {
                 ffi::gk_turn_based_matchmaker_view_controller_retain(self.ptr)
             },
-            handler_ptr,
+            token,
+            context,
         }
     }
 
@@ -562,20 +547,23 @@ crate::utils::retained::gk_retained!(
 
 impl Drop for TurnBasedMatchmakerViewControllerDelegate {
     fn drop(&mut self) {
+        self.context.deactivate();
         unsafe {
-            ffi::gk_turn_based_matchmaker_view_controller_clear_callbacks(self.controller_ptr);
+            ffi::gk_turn_based_matchmaker_view_controller_clear_callbacks(
+                self.controller_ptr,
+                self.token,
+            );
             ffi::gk_turn_based_matchmaker_view_controller_release(self.controller_ptr);
-            drop(Box::from_raw(self.handler_ptr));
         }
     }
 }
 
 impl Drop for GameCenterControllerDelegate {
     fn drop(&mut self) {
+        self.context.deactivate();
         unsafe {
             ffi::gk_game_center_controller_clear_callback(self.controller_ptr);
             ffi::gk_game_center_controller_release(self.controller_ptr);
-            drop(Box::from_raw(self.handler_ptr));
         }
     }
 }
@@ -615,10 +603,12 @@ impl GameCenterViewState {
 }
 
 unsafe extern "C" fn game_center_trampoline(refcon: *mut c_void) {
-    // SAFETY: refcon is a valid `Box<Box<dyn Fn() + Send>>` allocated in the
-    // `GameCenterControllerDelegate` constructor and kept alive by that guard.
-    let handler = &*(refcon.cast::<Box<dyn Fn() + Send + 'static>>());
-    catch_user_panic("game_center_trampoline", handler);
+    // SAFETY: refcon is the delegate's `CallbackContext`, retained by the Swift registration.
+    let _ =
+        CallbackContext::<GameCenterHandler>::with(refcon, "game_center_trampoline", |handler| {
+            let handler = handler.lock().unwrap_or_else(PoisonError::into_inner);
+            handler();
+        });
 }
 
 unsafe extern "C" fn matchmaker_view_controller_trampoline(
@@ -627,9 +617,6 @@ unsafe extern "C" fn matchmaker_view_controller_trampoline(
     payload_json: *const c_char,
     raw_ptr: *mut c_void,
 ) {
-    // SAFETY: refcon is a valid `Box<Box<dyn Fn(MatchmakerViewControllerEvent) + Send>>`
-    // allocated in `MatchmakerViewControllerDelegate::new` and kept alive by that guard.
-    let handler = &*(refcon.cast::<Box<dyn Fn(MatchmakerViewControllerEvent) + Send + 'static>>());
     let event = match kind {
         1 => parse_framework_error(payload_json)
             .map(|error| MatchmakerViewControllerEvent::Failed { error }),
@@ -643,7 +630,15 @@ unsafe extern "C" fn matchmaker_view_controller_trampoline(
         _ => Some(MatchmakerViewControllerEvent::Cancelled),
     };
     if let Some(event) = event {
-        catch_user_panic("matchmaker_view_controller_trampoline", || handler(event));
+        // SAFETY: refcon is the delegate's `CallbackContext`, retained by the Swift registration.
+        let _ = CallbackContext::<MatchmakerHandler>::with(
+            refcon,
+            "matchmaker_view_controller_trampoline",
+            |handler| {
+                let handler = handler.lock().unwrap_or_else(PoisonError::into_inner);
+                handler(event);
+            },
+        );
     }
 }
 
@@ -652,19 +647,21 @@ unsafe extern "C" fn turn_based_matchmaker_view_controller_trampoline(
     kind: i32,
     payload_json: *const c_char,
 ) {
-    // SAFETY: refcon is a valid `Box<Box<dyn Fn(TurnBasedMatchmakerViewControllerEvent) + Send>>`
-    // allocated in `TurnBasedMatchmakerViewControllerDelegate::new` and kept alive by that guard.
-    let handler =
-        &*(refcon.cast::<Box<dyn Fn(TurnBasedMatchmakerViewControllerEvent) + Send + 'static>>());
     let event = match kind {
         1 => parse_framework_error(payload_json)
             .map(|error| TurnBasedMatchmakerViewControllerEvent::Failed { error }),
         _ => Some(TurnBasedMatchmakerViewControllerEvent::Cancelled),
     };
     if let Some(event) = event {
-        catch_user_panic("turn_based_matchmaker_view_controller_trampoline", || {
-            handler(event)
-        });
+        // SAFETY: refcon is the delegate's `CallbackContext`, retained by the Swift registration.
+        let _ = CallbackContext::<TurnBasedMatchmakerHandler>::with(
+            refcon,
+            "turn_based_matchmaker_view_controller_trampoline",
+            |handler| {
+                let handler = handler.lock().unwrap_or_else(PoisonError::into_inner);
+                handler(event);
+            },
+        );
     }
 }
 

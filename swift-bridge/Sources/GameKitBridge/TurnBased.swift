@@ -55,12 +55,17 @@ struct GKTurnBasedMatchPayload: Codable {
     let exchangeMaxInitiatedExchangesPerPlayer: Int
 }
 
-func gkMakeTurnBasedRequest(from payload: GKTurnBasedMatchRequestPayload) async throws -> GKMatchRequest {
+func gkBaseTurnBasedRequest(from payload: GKTurnBasedMatchRequestPayload) -> GKMatchRequest {
     let request = GKMatchRequest()
     request.minPlayers = payload.minPlayers
     request.maxPlayers = payload.maxPlayers
     request.playerGroup = payload.playerGroup
     request.playerAttributes = payload.playerAttributes
+    return request
+}
+
+func gkMakeTurnBasedRequest(from payload: GKTurnBasedMatchRequestPayload) async throws -> GKMatchRequest {
+    let request = gkBaseTurnBasedRequest(from: payload)
     if !payload.recipientIds.isEmpty {
         request.recipients = try await gkLoadPlayers(identifiedBy: payload.recipientIds)
     }

@@ -79,10 +79,7 @@ final class GKRecipientResponseSink {
     }
 }
 
-func gkMakeMatchRequest(
-    from payload: GKMatchRequestPayload,
-    responseSink: GKRecipientResponseSink? = nil
-) async throws -> GKMatchRequest {
+func gkBaseMatchRequest(from payload: GKMatchRequestPayload) -> GKMatchRequest {
     let request = GKMatchRequest()
     request.minPlayers = payload.minPlayers
     request.maxPlayers = payload.maxPlayers
@@ -90,6 +87,14 @@ func gkMakeMatchRequest(
     request.playerAttributes = payload.playerAttributes
     request.defaultNumberOfPlayers = payload.defaultNumberOfPlayers
     request.inviteMessage = payload.inviteMessage
+    return request
+}
+
+func gkMakeMatchRequest(
+    from payload: GKMatchRequestPayload,
+    responseSink: GKRecipientResponseSink? = nil
+) async throws -> GKMatchRequest {
+    let request = gkBaseMatchRequest(from: payload)
     if !payload.recipientIds.isEmpty {
         request.recipients = try await gkLoadPlayers(identifiedBy: payload.recipientIds)
     }

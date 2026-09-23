@@ -62,9 +62,11 @@ unsafe extern "C" {
         ptr: *mut c_void,
         callback: Option<unsafe extern "C" fn(*mut c_void, i32, *const c_char, *mut c_void)>,
         refcon: *mut c_void,
-    );
+        retain: Option<unsafe extern "C" fn(*mut c_void)>,
+        release: Option<unsafe extern "C" fn(*mut c_void)>,
+    ) -> u64;
 
-    pub fn gk_matchmaker_view_controller_clear_callbacks(ptr: *mut c_void);
+    pub fn gk_matchmaker_view_controller_clear_callbacks(ptr: *mut c_void, token: u64);
 
     pub fn gk_turn_based_matchmaker_view_controller_create(
         request_json: *const c_char,
@@ -92,9 +94,11 @@ unsafe extern "C" {
         ptr: *mut c_void,
         callback: Option<unsafe extern "C" fn(*mut c_void, i32, *const c_char)>,
         refcon: *mut c_void,
-    );
+        retain: Option<unsafe extern "C" fn(*mut c_void)>,
+        release: Option<unsafe extern "C" fn(*mut c_void)>,
+    ) -> u64;
 
-    pub fn gk_turn_based_matchmaker_view_controller_clear_callbacks(ptr: *mut c_void);
+    pub fn gk_turn_based_matchmaker_view_controller_clear_callbacks(ptr: *mut c_void, token: u64);
 
     pub fn gk_dialog_present_matchmaker_view_controller(
         ptr: *mut c_void,
@@ -110,6 +114,8 @@ unsafe extern "C" {
         state: i32,
         callback: Option<unsafe extern "C" fn(*mut c_void)>,
         refcon: *mut c_void,
+        retain: Option<unsafe extern "C" fn(*mut c_void)>,
+        release: Option<unsafe extern "C" fn(*mut c_void)>,
         out_ptr: *mut *mut c_void,
         out_error: *mut *mut c_char,
     ) -> i32;

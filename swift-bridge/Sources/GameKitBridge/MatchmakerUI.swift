@@ -31,66 +31,98 @@ func gkMatchRequestPayload(from request: GKMatchRequest) -> GKMatchRequestPayloa
     )
 }
 
+final class GKUICallbackRegistration<Callback> {
+    let token: UInt64
+    let callback: Callback
+    let refcon: UnsafeMutableRawPointer?
+    let releaseContext: GKContextCallback?
+
+    init(
+        token: UInt64,
+        callback: Callback,
+        refcon: UnsafeMutableRawPointer?,
+        retainContext: GKContextCallback?,
+        releaseContext: GKContextCallback?
+    ) {
+        self.token = token
+        self.callback = callback
+        self.refcon = refcon
+        self.releaseContext = releaseContext
+        retainContext?(refcon)
+    }
+
+    deinit {
+        releaseContext?(refcon)
+    }
+}
+
+private var gkNextUICallbackToken: UInt64 = 1
+
+private func gkMakeUICallbackToken() -> UInt64 {
+    let token = gkNextUICallbackToken
+    gkNextUICallbackToken += 1
+    return token
+}
+
 final class GKMatchmakerViewControllerDelegateImpl: NSObject, GKMatchmakerViewControllerDelegate {
-    var callback: GKMatchmakerViewControllerCallbackFn?
-    var refcon: UnsafeMutableRawPointer?
+    var registration: GKUICallbackRegistration<GKMatchmakerViewControllerCallbackFn>?
+    var knownPlayers: [String: GKPlayer] = [:]
+
+    private func emit(_ kind: Int32, _ json: String?, _ raw: UnsafeMutableRawPointer?) {
+        guard let registration else {
+            if let raw { gk_release(raw) }
+            return
+        }
+        withExtendedLifetime(registration) {
+            guard let json, let cString = gkCString(json) else {
+                registration.callback(registration.refcon, kind, nil, raw)
+                return
+            }
+            defer { free(cString) }
+            registration.callback(registration.refcon, kind, UnsafePointer(cString), raw)
+        }
+    }
 
     func matchmakerViewControllerWasCancelled(_ viewController: GKMatchmakerViewController) {
-        callback?(refcon, 0, nil, nil)
+        emit(0, nil, nil)
     }
 
     func matchmakerViewController(
         _ viewController: GKMatchmakerViewController,
         didFailWithError error: Error
     ) {
-        guard let callback else { return }
         let nsError = error as NSError
         let payload = GKFrameworkErrorPayload(
             domain: nsError.domain,
             code: nsError.code,
             localizedDescription: nsError.localizedDescription
         )
-        guard let json = try? gkEncodeJSON(payload), let cString = gkCString(json) else {
-            callback(refcon, 1, nil, nil)
-            return
-        }
-        defer { free(cString) }
-        callback(refcon, 1, UnsafePointer(cString), nil)
+        emit(1, try? gkEncodeJSON(payload), nil)
     }
 
     func matchmakerViewController(
         _ viewController: GKMatchmakerViewController,
         didFind match: GKMatch
     ) {
-        callback?(refcon, 2, nil, gk_retain(GKMatchBox(match: match)))
+        emit(2, nil, gk_retain(GKMatchBox(match: match)))
     }
 
     func matchmakerViewController(
         _ viewController: GKMatchmakerViewController,
         didFindHostedPlayers players: [GKPlayer]
     ) {
-        guard let callback else { return }
-        guard let json = try? gkEncodeJSON(players.map(gkPlayerPayload(from:))),
-              let cString = gkCString(json)
-        else {
-            callback(refcon, 3, nil, nil)
-            return
+        for player in players {
+            knownPlayers[player.gamePlayerID] = player
         }
-        defer { free(cString) }
-        callback(refcon, 3, UnsafePointer(cString), nil)
+        emit(3, try? gkEncodeJSON(players.map(gkPlayerPayload(from:))), nil)
     }
 
     func matchmakerViewController(
         _ viewController: GKMatchmakerViewController,
         hostedPlayerDidAccept player: GKPlayer
     ) {
-        guard let callback else { return }
-        guard let json = try? gkEncodeJSON(gkPlayerPayload(from: player)), let cString = gkCString(json) else {
-            callback(refcon, 4, nil, nil)
-            return
-        }
-        defer { free(cString) }
-        callback(refcon, 4, UnsafePointer(cString), nil)
+        knownPlayers[player.gamePlayerID] = player
+        emit(4, try? gkEncodeJSON(gkPlayerPayload(from: player)), nil)
     }
 }
 
@@ -111,32 +143,37 @@ final class GKMatchmakerViewControllerBox {
 }
 
 final class GKTurnBasedMatchmakerViewControllerDelegateImpl: NSObject, GKTurnBasedMatchmakerViewControllerDelegate {
-    var callback: GKTurnBasedMatchmakerViewControllerCallbackFn?
-    var refcon: UnsafeMutableRawPointer?
+    var registration: GKUICallbackRegistration<GKTurnBasedMatchmakerViewControllerCallbackFn>?
+
+    private func emit(_ kind: Int32, _ json: String?) {
+        guard let registration else { return }
+        withExtendedLifetime(registration) {
+            guard let json, let cString = gkCString(json) else {
+                registration.callback(registration.refcon, kind, nil)
+                return
+            }
+            defer { free(cString) }
+            registration.callback(registration.refcon, kind, UnsafePointer(cString))
+        }
+    }
 
     func turnBasedMatchmakerViewControllerWasCancelled(
         _ viewController: GKTurnBasedMatchmakerViewController
     ) {
-        callback?(refcon, 0, nil)
+        emit(0, nil)
     }
 
     func turnBasedMatchmakerViewController(
         _ viewController: GKTurnBasedMatchmakerViewController,
         didFailWithError error: Error
     ) {
-        guard let callback else { return }
         let nsError = error as NSError
         let payload = GKFrameworkErrorPayload(
             domain: nsError.domain,
             code: nsError.code,
             localizedDescription: nsError.localizedDescription
         )
-        guard let json = try? gkEncodeJSON(payload), let cString = gkCString(json) else {
-            callback(refcon, 1, nil)
-            return
-        }
-        defer { free(cString) }
-        callback(refcon, 1, UnsafePointer(cString))
+        emit(1, try? gkEncodeJSON(payload))
     }
 }
 
@@ -157,12 +194,14 @@ final class GKTurnBasedMatchmakerViewControllerBox {
 }
 
 final class GKGameCenterViewControllerDelegateImpl: NSObject, GKGameCenterControllerDelegate {
-    var callback: GKGameCenterViewControllerCallbackFn?
-    var refcon: UnsafeMutableRawPointer?
+    var registration: GKUICallbackRegistration<GKGameCenterViewControllerCallbackFn>?
 
     func gameCenterViewControllerDidFinish(_ gameCenterViewController: GKGameCenterViewController) {
         _ = try? gkDialogControllerForPresentation().dismiss(NSNull())
-        callback?(refcon)
+        guard let registration else { return }
+        withExtendedLifetime(registration) {
+            registration.callback(registration.refcon)
+        }
     }
 }
 
@@ -267,29 +306,30 @@ public func gk_invite_player_attributes(_ ptr: UnsafeMutableRawPointer?) -> UInt
     return gk_borrow(ptr, as: GKInvite.self).playerAttributes
 }
 
+private let gkRecipientsOnMainThreadMessage =
+    "a matchmaking view controller is created on the main thread, where GameKit cannot look up recipients; leave recipients empty and invite players from its UI"
+
 @_cdecl("gk_matchmaker_view_controller_create")
 public func gk_matchmaker_view_controller_create(
     _ requestJSON: UnsafePointer<CChar>?,
     _ outPtr: UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    let requestJSON = gkCopyString(requestJSON)
-    return gkBlockOnAsync(
-        work: {
-            let payload = try gkDecodeJSON(requestJSON, as: GKMatchRequestPayload.self)
-            let request = try await gkMakeMatchRequest(from: payload)
-            guard let controller = GKMatchmakerViewController(matchRequest: request) else {
-                throw GKBridgeError.unknown("GKMatchmakerViewController init(matchRequest:) returned nil")
-            }
-            return controller
-        },
-        onSuccess: { controller in
-            outPtr?.pointee = gk_retain(GKMatchmakerViewControllerBox(controller: controller))
-        },
-        onError: { error in
-            gkPopulateError(outError, with: error)
+    do {
+        try gkRequireMainThread("creating a matchmaking view controller")
+        let payload = try gkDecodeJSON(requestJSON, as: GKMatchRequestPayload.self)
+        guard payload.recipientIds.isEmpty else {
+            throw GKBridgeError.unavailable(gkRecipientsOnMainThreadMessage)
         }
-    )
+        guard let controller = GKMatchmakerViewController(matchRequest: gkBaseMatchRequest(from: payload)) else {
+            throw GKBridgeError.unknown("GKMatchmakerViewController init(matchRequest:) returned nil")
+        }
+        outPtr?.pointee = gk_retain(GKMatchmakerViewControllerBox(controller: controller))
+        return GK_OK
+    } catch {
+        gkPopulateError(outError, with: error)
+        return gkStatusFor(error)
+    }
 }
 
 @_cdecl("gk_matchmaker_view_controller_create_with_invite")
@@ -304,6 +344,7 @@ public func gk_matchmaker_view_controller_create_with_invite(
     }
 
     do {
+        try gkRequireMainThread("creating a matchmaking view controller")
         let invite = gk_borrow(invitePtr, as: GKInvite.self)
         guard let controller = GKMatchmakerViewController(invite: invite) else {
             throw GKBridgeError.unknown("GKMatchmakerViewController init(invite:) returned nil")
@@ -409,6 +450,12 @@ public func gk_matchmaker_view_controller_add_players_to_match(
         gkPopulateError(outError, with: GKBridgeError.unknown("missing controller or match pointer"))
         return GK_UNKNOWN
     }
+    do {
+        try gkRequireMainThread("adding players from the matchmaking view controller")
+    } catch {
+        gkPopulateError(outError, with: error)
+        return gkStatusFor(error)
+    }
 
     let controller = gk_borrow(ptr, as: GKMatchmakerViewControllerBox.self).controller
     let match = gk_borrow(matchPtr, as: GKMatchBox.self).match
@@ -423,50 +470,53 @@ public func gk_matchmaker_view_controller_set_hosted_player_connected(
     _ connected: Bool,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    let playerGameID = gkCopyString(playerGameID)
-    guard let ptr else {
-        gkPopulateError(outError, with: GKBridgeError.unknown("null matchmaker view controller pointer"))
-        return GK_UNKNOWN
-    }
-    let controller = gk_borrow(ptr, as: GKMatchmakerViewControllerBox.self).controller
-
-    return gkBlockOnAsync(
-        work: {
-            guard let playerGameID else {
-                throw GKBridgeError.unknown("missing hosted player gamePlayerID")
-            }
-            let playersByID = try await gkResolvePlayers(byGameIDs: [playerGameID])
-            guard let player = playersByID[playerGameID] else {
-                throw GKBridgeError.notFound("hosted player was not found")
-            }
-            controller.setHostedPlayer(player, didConnect: connected)
-            return ()
-        },
-        onSuccess: { (_: Void) in },
-        onError: { error in
-            gkPopulateError(outError, with: error)
+    do {
+        try gkRequireMainThread("updating a hosted player's connection state")
+        guard let ptr else {
+            throw GKBridgeError.unknown("null matchmaker view controller pointer")
         }
-    )
+        guard let gamePlayerID = gkCopyString(playerGameID) else {
+            throw GKBridgeError.unknown("missing hosted player gamePlayerID")
+        }
+        let box = gk_borrow(ptr, as: GKMatchmakerViewControllerBox.self)
+        guard let player = box.delegate.knownPlayers[gamePlayerID] else {
+            throw GKBridgeError.notFound("the matchmaking view controller has not reported hosted player \(gamePlayerID)")
+        }
+        box.controller.setHostedPlayer(player, didConnect: connected)
+        return GK_OK
+    } catch {
+        gkPopulateError(outError, with: error)
+        return gkStatusFor(error)
+    }
 }
 
 @_cdecl("gk_matchmaker_view_controller_set_callbacks")
 public func gk_matchmaker_view_controller_set_callbacks(
     _ ptr: UnsafeMutableRawPointer?,
     _ callback: GKMatchmakerViewControllerCallbackFn?,
-    _ refcon: UnsafeMutableRawPointer?
-) {
-    guard let ptr else { return }
-    let box = gk_borrow(ptr, as: GKMatchmakerViewControllerBox.self)
-    box.delegate.callback = callback
-    box.delegate.refcon = refcon
+    _ refcon: UnsafeMutableRawPointer?,
+    _ retainContext: GKContextCallback?,
+    _ releaseContext: GKContextCallback?
+) -> UInt64 {
+    guard let ptr, let callback, Thread.isMainThread else { return 0 }
+    let registration = GKUICallbackRegistration(
+        token: gkMakeUICallbackToken(),
+        callback: callback,
+        refcon: refcon,
+        retainContext: retainContext,
+        releaseContext: releaseContext
+    )
+    gk_borrow(ptr, as: GKMatchmakerViewControllerBox.self).delegate.registration = registration
+    return registration.token
 }
 
 @_cdecl("gk_matchmaker_view_controller_clear_callbacks")
-public func gk_matchmaker_view_controller_clear_callbacks(_ ptr: UnsafeMutableRawPointer?) {
-    guard let ptr else { return }
-    let box = gk_borrow(ptr, as: GKMatchmakerViewControllerBox.self)
-    box.delegate.callback = nil
-    box.delegate.refcon = nil
+public func gk_matchmaker_view_controller_clear_callbacks(_ ptr: UnsafeMutableRawPointer?, _ token: UInt64) {
+    guard let ptr, Thread.isMainThread else { return }
+    let delegate = gk_borrow(ptr, as: GKMatchmakerViewControllerBox.self).delegate
+    if delegate.registration?.token == token {
+        delegate.registration = nil
+    }
 }
 
 @_cdecl("gk_turn_based_matchmaker_view_controller_create")
@@ -475,21 +525,19 @@ public func gk_turn_based_matchmaker_view_controller_create(
     _ outPtr: UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    let requestJSON = gkCopyString(requestJSON)
-    return gkBlockOnAsync(
-        work: {
-            let payload = try gkDecodeJSON(requestJSON, as: GKTurnBasedMatchRequestPayload.self)
-            let request = try await gkMakeTurnBasedRequest(from: payload)
-            let controller = GKTurnBasedMatchmakerViewController(matchRequest: request)
-            return controller
-        },
-        onSuccess: { controller in
-            outPtr?.pointee = gk_retain(GKTurnBasedMatchmakerViewControllerBox(controller: controller))
-        },
-        onError: { error in
-            gkPopulateError(outError, with: error)
+    do {
+        try gkRequireMainThread("creating a turn-based matchmaking view controller")
+        let payload = try gkDecodeJSON(requestJSON, as: GKTurnBasedMatchRequestPayload.self)
+        guard payload.recipientIds.isEmpty else {
+            throw GKBridgeError.unavailable(gkRecipientsOnMainThreadMessage)
         }
-    )
+        let controller = GKTurnBasedMatchmakerViewController(matchRequest: gkBaseTurnBasedRequest(from: payload))
+        outPtr?.pointee = gk_retain(GKTurnBasedMatchmakerViewControllerBox(controller: controller))
+        return GK_OK
+    } catch {
+        gkPopulateError(outError, with: error)
+        return gkStatusFor(error)
+    }
 }
 
 @_cdecl("gk_turn_based_matchmaker_view_controller_retain")
@@ -545,22 +593,32 @@ public func gk_turn_based_matchmaker_view_controller_set_matchmaking_mode(
 public func gk_turn_based_matchmaker_view_controller_set_callbacks(
     _ ptr: UnsafeMutableRawPointer?,
     _ callback: GKTurnBasedMatchmakerViewControllerCallbackFn?,
-    _ refcon: UnsafeMutableRawPointer?
-) {
-    guard let ptr else { return }
-    let box = gk_borrow(ptr, as: GKTurnBasedMatchmakerViewControllerBox.self)
-    box.delegate.callback = callback
-    box.delegate.refcon = refcon
+    _ refcon: UnsafeMutableRawPointer?,
+    _ retainContext: GKContextCallback?,
+    _ releaseContext: GKContextCallback?
+) -> UInt64 {
+    guard let ptr, let callback, Thread.isMainThread else { return 0 }
+    let registration = GKUICallbackRegistration(
+        token: gkMakeUICallbackToken(),
+        callback: callback,
+        refcon: refcon,
+        retainContext: retainContext,
+        releaseContext: releaseContext
+    )
+    gk_borrow(ptr, as: GKTurnBasedMatchmakerViewControllerBox.self).delegate.registration = registration
+    return registration.token
 }
 
 @_cdecl("gk_turn_based_matchmaker_view_controller_clear_callbacks")
 public func gk_turn_based_matchmaker_view_controller_clear_callbacks(
-    _ ptr: UnsafeMutableRawPointer?
+    _ ptr: UnsafeMutableRawPointer?,
+    _ token: UInt64
 ) {
-    guard let ptr else { return }
-    let box = gk_borrow(ptr, as: GKTurnBasedMatchmakerViewControllerBox.self)
-    box.delegate.callback = nil
-    box.delegate.refcon = nil
+    guard let ptr, Thread.isMainThread else { return }
+    let delegate = gk_borrow(ptr, as: GKTurnBasedMatchmakerViewControllerBox.self).delegate
+    if delegate.registration?.token == token {
+        delegate.registration = nil
+    }
 }
 
 @_cdecl("gk_dialog_present_matchmaker_view_controller")
@@ -574,6 +632,7 @@ public func gk_dialog_present_matchmaker_view_controller(
     }
 
     do {
+        try gkRequireMainThread("presenting a matchmaking view controller")
         let dialog = try gkDialogControllerForPresentation()
         let box = gk_borrow(ptr, as: GKMatchmakerViewControllerBox.self)
         guard dialog.present(box.controller) else {
@@ -597,6 +656,7 @@ public func gk_dialog_present_turn_based_matchmaker_view_controller(
     }
 
     do {
+        try gkRequireMainThread("presenting a turn-based matchmaking view controller")
         let dialog = try gkDialogControllerForPresentation()
         let box = gk_borrow(ptr, as: GKTurnBasedMatchmakerViewControllerBox.self)
         guard dialog.present(box.controller) else {
@@ -614,15 +674,25 @@ public func gk_dialog_present_game_center_view(
     _ state: Int32,
     _ callback: GKGameCenterViewControllerCallbackFn?,
     _ refcon: UnsafeMutableRawPointer?,
+    _ retainContext: GKContextCallback?,
+    _ releaseContext: GKContextCallback?,
     _ outPtr: UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
     do {
+        try gkRequireMainThread("presenting the Game Center view controller")
         let dialog = try gkDialogControllerForPresentation()
         let controller = try gkMakeGameCenterViewController(state: state)
         let box = GKGameCenterViewControllerBox(controller: controller)
-        box.delegate.callback = callback
-        box.delegate.refcon = refcon
+        if let callback {
+            box.delegate.registration = GKUICallbackRegistration(
+                token: gkMakeUICallbackToken(),
+                callback: callback,
+                refcon: refcon,
+                retainContext: retainContext,
+                releaseContext: releaseContext
+            )
+        }
         guard dialog.present(box.controller) else {
             throw GKBridgeError.unknown("GKDialogController refused to present the Game Center controller")
         }
@@ -636,10 +706,8 @@ public func gk_dialog_present_game_center_view(
 
 @_cdecl("gk_game_center_controller_clear_callback")
 public func gk_game_center_controller_clear_callback(_ ptr: UnsafeMutableRawPointer?) {
-    guard let ptr else { return }
-    let box = gk_borrow(ptr, as: GKGameCenterViewControllerBox.self)
-    box.delegate.callback = nil
-    box.delegate.refcon = nil
+    guard let ptr, Thread.isMainThread else { return }
+    gk_borrow(ptr, as: GKGameCenterViewControllerBox.self).delegate.registration = nil
 }
 
 @_cdecl("gk_game_center_controller_release")
@@ -652,6 +720,12 @@ public func gk_game_center_controller_release(_ ptr: UnsafeMutableRawPointer?) {
 public func gk_dialog_dismiss(
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
-    GKDialogController.shared().dismiss(NSNull())
-    return GK_OK
+    do {
+        try gkRequireMainThread("dismissing a Game Center dialog")
+        GKDialogController.shared().dismiss(NSNull())
+        return GK_OK
+    } catch {
+        gkPopulateError(outError, with: error)
+        return gkStatusFor(error)
+    }
 }

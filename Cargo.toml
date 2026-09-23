@@ -68,6 +68,10 @@ maintenance = { status = "actively-developed" }
 name = "main_thread_blocking"
 harness = false
 
+[[test]]
+name = "matchmaker_ui_main_thread"
+harness = false
+
 [[example]]
 name = "15_async_auth"
 required-features = ["async"]
