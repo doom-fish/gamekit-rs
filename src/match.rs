@@ -175,7 +175,8 @@ impl Match {
 
     /// Sets a delegate to receive match events.
     pub fn set_delegate<F: Fn(MatchEvent) + Send + 'static>(&self, handler: F) -> MatchDelegate {
-        let context: CallbackContext<MatchHandler> = CallbackContext::new(Mutex::new(Box::new(handler)));
+        let context: CallbackContext<MatchHandler> =
+            CallbackContext::new(Mutex::new(Box::new(handler)));
         let token = unsafe {
             ffi::gk_match_set_callbacks(
                 self.ptr,
@@ -314,7 +315,11 @@ unsafe extern "C" fn match_failure_trampoline(refcon: *mut c_void, error_json: *
     } else {
         None
     };
-    deliver_match_event(refcon, "match_failure_trampoline", MatchEvent::Failed { error });
+    deliver_match_event(
+        refcon,
+        "match_failure_trampoline",
+        MatchEvent::Failed { error },
+    );
 }
 
 const fn send_mode_to_i32(mode: SendDataMode) -> i32 {
@@ -360,7 +365,12 @@ mod tests {
         let payload = [1_u8, 2, 3];
 
         unsafe {
-            match_data_trampoline(swift_reference, player.as_ptr(), payload.as_ptr(), payload.len());
+            match_data_trampoline(
+                swift_reference,
+                player.as_ptr(),
+                payload.as_ptr(),
+                payload.len(),
+            );
             match_state_trampoline(swift_reference, player.as_ptr(), 1);
             match_failure_trampoline(swift_reference, std::ptr::null());
         }
@@ -368,7 +378,12 @@ mod tests {
 
         drop(context);
         unsafe {
-            match_data_trampoline(swift_reference, player.as_ptr(), payload.as_ptr(), payload.len());
+            match_data_trampoline(
+                swift_reference,
+                player.as_ptr(),
+                payload.as_ptr(),
+                payload.len(),
+            );
             match_state_trampoline(swift_reference, std::ptr::null(), 2);
             match_failure_trampoline(swift_reference, std::ptr::null());
         }

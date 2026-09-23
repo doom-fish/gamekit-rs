@@ -307,7 +307,8 @@ public func gk_invite_player_attributes(_ ptr: UnsafeMutableRawPointer?) -> UInt
 }
 
 private let gkRecipientsOnMainThreadMessage =
-    "a matchmaking view controller is created on the main thread, where GameKit cannot look up recipients; leave recipients empty and invite players from its UI"
+    "a matchmaking view controller is created on the main thread, where GameKit cannot look up recipients; "
+    + "leave recipients empty and invite players from its UI"
 
 @_cdecl("gk_matchmaker_view_controller_create")
 public func gk_matchmaker_view_controller_create(
@@ -480,7 +481,9 @@ public func gk_matchmaker_view_controller_set_hosted_player_connected(
         }
         let box = gk_borrow(ptr, as: GKMatchmakerViewControllerBox.self)
         guard let player = box.delegate.knownPlayers[gamePlayerID] else {
-            throw GKBridgeError.notFound("the matchmaking view controller has not reported hosted player \(gamePlayerID)")
+            throw GKBridgeError.notFound(
+                "the matchmaking view controller has not reported hosted player \(gamePlayerID)"
+            )
         }
         box.controller.setHostedPlayer(player, didConnect: connected)
         return GK_OK

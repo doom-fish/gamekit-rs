@@ -204,7 +204,8 @@ func gkBlockOnAsync<T>(
 ) -> Int32 {
     guard !Thread.isMainThread else {
         let error = GKBridgeError.wrongThread(
-            "synchronous GameKit calls cannot run on the main thread, which delivers their results; call them from another thread or use the async API"
+            "synchronous GameKit calls cannot run on the main thread, which delivers their results; "
+                + "call them from another thread or use the async API"
         )
         onError(error)
         return error.statusCode

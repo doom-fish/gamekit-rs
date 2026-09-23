@@ -233,7 +233,8 @@ pub struct AuthObserver {
 impl AuthObserver {
     /// Creates a new authentication observer with the given handler.
     pub fn new<F: Fn(AuthEvent) + Send + 'static>(handler: F) -> Self {
-        let context: CallbackContext<AuthHandler> = CallbackContext::new(Mutex::new(Box::new(handler)));
+        let context: CallbackContext<AuthHandler> =
+            CallbackContext::new(Mutex::new(Box::new(handler)));
         let token = unsafe {
             ffi::gk_authenticate_handler_set(
                 Some(auth_trampoline),

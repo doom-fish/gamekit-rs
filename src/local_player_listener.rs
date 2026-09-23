@@ -201,10 +201,14 @@ unsafe extern "C" fn local_player_listener_trampoline(
 
     // SAFETY: refcon is the listener's `CallbackContext`, retained by the Swift listener object
     // until it is deallocated.
-    CallbackContext::<ListenerHandler>::with(refcon, "local_player_listener_trampoline", |handler| {
-        let handler = handler.lock().unwrap_or_else(PoisonError::into_inner);
-        i32::from(handler(event))
-    })
+    CallbackContext::<ListenerHandler>::with(
+        refcon,
+        "local_player_listener_trampoline",
+        |handler| {
+            let handler = handler.lock().unwrap_or_else(PoisonError::into_inner);
+            i32::from(handler(event))
+        },
+    )
     .unwrap_or(0)
 }
 
@@ -336,7 +340,7 @@ mod tests {
         isa: *const c_void,
         flags: i32,
         reserved: i32,
-        invoke: unsafe extern "C" fn(*mut CompletionBlock, i8),
+        invoke: unsafe extern "C" fn(*mut Self, i8),
         descriptor: *const BlockDescriptor,
     }
 
@@ -378,7 +382,7 @@ mod tests {
             size: size_of::<CompletionBlock>(),
         };
         let mut block = CompletionBlock {
-            isa: unsafe { (&raw const _NSConcreteGlobalBlock).cast() },
+            isa: (&raw const _NSConcreteGlobalBlock).cast(),
             flags: 1 << 28,
             reserved: 0,
             invoke: record_handled,

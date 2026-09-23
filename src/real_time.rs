@@ -393,10 +393,11 @@ unsafe extern "C" fn invite_recipient_response_trampoline(
     };
     // SAFETY: refcon is the `RecipientResponseContext` handed to the matchmaking call; the Swift
     // request handler holds a reference to it until GameKit releases the request.
-    let _ = RecipientResponseContext::with(refcon, "invite_recipient_response_trampoline", |handler| {
-        let mut handler = handler.lock().unwrap_or_else(PoisonError::into_inner);
-        handler(player, InviteRecipientResponse::from_raw(response));
-    });
+    let _ =
+        RecipientResponseContext::with(refcon, "invite_recipient_response_trampoline", |handler| {
+            let mut handler = handler.lock().unwrap_or_else(PoisonError::into_inner);
+            handler(player, InviteRecipientResponse::from_raw(response));
+        });
 }
 
 const fn match_type_to_i32(match_type: MatchType) -> i32 {

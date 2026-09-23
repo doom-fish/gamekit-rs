@@ -102,7 +102,12 @@ final class GKMatchDelegateImpl: NSObject, GKMatchDelegate {
         defer { free(playerCString) }
         withExtendedLifetime(registration) {
             data.withUnsafeBytes { bytes in
-                callback(registration.refcon, UnsafePointer(playerCString), bytes.bindMemory(to: UInt8.self).baseAddress, data.count)
+                callback(
+                    registration.refcon,
+                    UnsafePointer(playerCString),
+                    bytes.bindMemory(to: UInt8.self).baseAddress,
+                    data.count
+                )
             }
         }
     }

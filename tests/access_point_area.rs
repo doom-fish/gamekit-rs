@@ -62,16 +62,18 @@ fn completion_is_dropped_unrun_when_the_trigger_fails() {
     let flag = Arc::clone(&ran);
     let invalid = AccessPoint::shared().trigger_target(
         AccessPointTrigger::Achievement("bad\0identifier"),
-        move |_| flag.store(true, Ordering::SeqCst),
+        move |_| {
+            flag.store(true, Ordering::SeqCst);
+        },
     );
     assert!(invalid.is_err());
     assert_eq!(Arc::strong_count(&ran), 1);
 
     let flag = Arc::clone(&ran);
     let player = unknown_player();
-    let unresolvable = AccessPoint::shared()
-        .trigger_target(AccessPointTrigger::Player(&player), move |_| {
-            flag.store(true, Ordering::SeqCst)
+    let unresolvable =
+        AccessPoint::shared().trigger_target(AccessPointTrigger::Player(&player), move |_| {
+            flag.store(true, Ordering::SeqCst);
         });
     assert!(
         matches!(unresolvable, Err(GameKitError::Unavailable(_))),

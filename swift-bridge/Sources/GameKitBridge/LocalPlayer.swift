@@ -214,7 +214,9 @@ public func gk_sign_in_view_controller_present(
         }
         let window = NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow
         guard let host = window?.contentViewController else {
-            throw GKBridgeError.notFound("no window content view controller is available to present the sign-in view controller")
+            throw GKBridgeError.notFound(
+                "no window content view controller is available to present the sign-in view controller"
+            )
         }
         host.presentAsSheet(viewController)
         return GK_OK
