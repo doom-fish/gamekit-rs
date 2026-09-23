@@ -28,7 +28,6 @@ pub enum AccessPointState {
     LocalPlayerFriendsList,
 }
 
-/// Game Center content the access point can open.
 #[derive(Clone, Copy)]
 pub enum AccessPointTrigger<'a> {
     Default,
@@ -140,21 +139,16 @@ impl AccessPoint {
         }
     }
 
-    /// Opens Game Center with the access point's default behavior and returns without waiting.
+    /// Triggers the access point using its default behavior.
     pub fn trigger(self) -> Result<(), GameKitError> {
         send_trigger(AccessPointTrigger::Default, None)
     }
 
-    /// Opens Game Center at `state` and returns without waiting.
+    /// Triggers the access point for a specific Game Center state.
     pub fn trigger_state(self, state: AccessPointState) -> Result<(), GameKitError> {
         send_trigger(AccessPointTrigger::State(state), None)
     }
 
-    /// Opens `target` and returns without waiting.
-    ///
-    /// `completion` runs on the main thread with `Ok(())` once Game Center closes, or with the
-    /// error that prevented it from opening after this call returned. It is dropped without being
-    /// called when this call returns an error or when `GameKit` never reports completion.
     pub fn trigger_target<F>(
         self,
         target: AccessPointTrigger<'_>,

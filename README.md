@@ -67,7 +67,7 @@ The Swift bridge is built for macOS 12.0 even with the macOS 26 SDK. APIs from n
 - Synchronous calls wait for `GameKit`, which delivers its answers on the main thread. On the main thread they return `GameKitError::WrongThread` instead of deadlocking, so call them from another thread or use the `async` feature.
 - `MatchmakerViewController`, `TurnBasedMatchmakerViewController`, `SignInViewController` and `DialogController` presentation are `AppKit` UI. Create, present and dismiss them on the main thread; the view controllers are not `Send`, and calls from other threads return `GameKitError::WrongThread`.
 - `GameKit` cannot look up recipients while a matchmaking view controller is created on the main thread, so a request with `recipient_ids` returns `GameKitError::Unavailable`. Invite players from the controller's UI, or use `Matchmaker` from another thread.
-- `AccessPoint::trigger`, `trigger_state` and `trigger_target` return immediately. Pass a completion to `trigger_target` to learn when Game Center closes.
+- `AccessPoint::trigger`, `trigger_state` and `trigger_target` return immediately. The completion passed to `trigger_target` runs on the main thread with `Ok(())` once Game Center closes, or with the error that stopped it opening after the call returned; it is dropped without running when the call itself returns an error or `GameKit` never reports completion.
 - When `GameKit` asks the player to sign in, `LocalPlayer::sign_in_view_controller()` returns the view controller it provided, ready to present on the main thread.
 - Friend and player lookups need a bundle identifier. `GameKit` raises an exception without one, so these calls return `GameKitError::Unavailable` instead.
 
