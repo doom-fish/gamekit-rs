@@ -38,6 +38,7 @@ final class GKLocalPlayerListenerImpl: NSObject, GKLocalPlayerListener {
         self.refcon = refcon
         self.releaseContext = releaseContext
         super.init()
+        _ = gkInstallWantsToPlayGameActivity
         retainContext?(refcon)
     }
 
@@ -286,19 +287,13 @@ final class GKLocalPlayerListenerImpl: NSObject, GKLocalPlayerListener {
 
 }
 
-#if GAMEKIT_HAS_MACOS26_SDK
-// GKGameActivityListener (API_AVAILABLE(macOS 26.0)) was folded into GKLocalPlayerListener
-// in the macOS 26 SDK without a deployment-target guard.  With the Swift deployment target
-// aligned to macOS 26.0 in build.rs (when SDK >= 26), the @available(macOS 26.0, *)
-// annotation satisfies the conformance checker and allows GKGameActivity in the signature.
-@available(macOS 26.0, *)
 extension GKLocalPlayerListenerImpl {
-    func player(
-        _ player: GKPlayer,
-        wantsToPlay activity: GKGameActivity,
-        completionHandler: @escaping @Sendable (Bool) -> Void
-    ) {
-        let handled = emit(
+    fileprivate func handleWantsToPlay(_ player: GKPlayer, activity: AnyObject) -> Bool {
+        #if GAMEKIT_HAS_MACOS26_SDK
+        guard #available(macOS 26.0, *), let activity = activity as? GKGameActivity else {
+            return false
+        }
+        return emit(
             GKLocalPlayerEventPayload(
                 kind: "wantsToPlayGameActivity",
                 player: gkPlayerPayload(from: player),
@@ -314,10 +309,32 @@ extension GKLocalPlayerListenerImpl {
                 activity: gkGameActivityPayload(from: activity)
             )
         ) != 0
-        completionHandler(handled)
+        #else
+        return false
+        #endif
     }
 }
-#endif
+
+private typealias GKGameActivityCompletionBlock = @convention(block) (ObjCBool) -> Void
+
+private typealias GKWantsToPlayGameActivityBlock = @convention(block) (
+    GKLocalPlayerListenerImpl,
+    GKPlayer,
+    AnyObject,
+    GKGameActivityCompletionBlock
+) -> Void
+
+private let gkInstallWantsToPlayGameActivity: Void = {
+    let implementation: GKWantsToPlayGameActivityBlock = { listener, player, activity, completionHandler in
+        completionHandler(ObjCBool(listener.handleWantsToPlay(player, activity: activity)))
+    }
+    class_addMethod(
+        GKLocalPlayerListenerImpl.self,
+        NSSelectorFromString("player:wantsToPlayGameActivity:completionHandler:"),
+        imp_implementationWithBlock(unsafeBitCast(implementation, to: AnyObject.self)),
+        "v@:@@@?"
+    )
+}()
 
 @_cdecl("gk_local_player_listener_register")
 public func gk_local_player_listener_register(

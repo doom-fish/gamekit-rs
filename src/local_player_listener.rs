@@ -316,3 +316,95 @@ unsafe fn parse_event_payload(payload_json: *const c_char) -> Option<LocalPlayer
         .ok()
         .and_then(|json| serde_json::from_str::<LocalPlayerEventPayload>(json).ok())
 }
+
+#[cfg(test)]
+mod tests {
+    use core::ffi::{c_char, c_void};
+    use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+    use std::sync::Arc;
+
+    use crate::LocalPlayer;
+
+    #[repr(C)]
+    struct BlockDescriptor {
+        reserved: usize,
+        size: usize,
+    }
+
+    #[repr(C)]
+    struct CompletionBlock {
+        isa: *const c_void,
+        flags: i32,
+        reserved: i32,
+        invoke: unsafe extern "C" fn(*mut CompletionBlock, i8),
+        descriptor: *const BlockDescriptor,
+    }
+
+    type WantsToPlaySend = unsafe extern "C" fn(
+        *mut c_void,
+        *mut c_void,
+        *mut c_void,
+        *mut c_void,
+        *mut CompletionBlock,
+    );
+
+    extern "C" {
+        static _NSConcreteGlobalBlock: u8;
+        fn sel_registerName(name: *const c_char) -> *mut c_void;
+        fn objc_getClass(name: *const c_char) -> *mut c_void;
+        fn object_getClass(object: *mut c_void) -> *mut c_void;
+        fn class_respondsToSelector(class: *mut c_void, selector: *mut c_void) -> i8;
+        fn objc_msgSend();
+    }
+
+    static HANDLED: AtomicI32 = AtomicI32::new(-1);
+
+    unsafe extern "C" fn record_handled(_block: *mut CompletionBlock, handled: i8) {
+        HANDLED.store(i32::from(handled), Ordering::SeqCst);
+    }
+
+    #[test]
+    fn listener_declines_game_activity_requests_it_cannot_read() {
+        let called = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&called);
+        let listener = LocalPlayer::register_listener(move |_| {
+            flag.store(true, Ordering::SeqCst);
+            true
+        })
+        .expect("register listener");
+
+        let descriptor = BlockDescriptor {
+            reserved: 0,
+            size: size_of::<CompletionBlock>(),
+        };
+        let mut block = CompletionBlock {
+            isa: unsafe { (&raw const _NSConcreteGlobalBlock).cast() },
+            flags: 1 << 28,
+            reserved: 0,
+            invoke: record_handled,
+            descriptor: &raw const descriptor,
+        };
+
+        unsafe {
+            let selector =
+                sel_registerName(c"player:wantsToPlayGameActivity:completionHandler:".as_ptr());
+            assert_ne!(
+                class_respondsToSelector(object_getClass(listener.listener_ptr), selector),
+                0
+            );
+            let not_an_activity = objc_getClass(c"NSObject".as_ptr());
+            let send = std::mem::transmute::<unsafe extern "C" fn(), WantsToPlaySend>(objc_msgSend);
+            send(
+                listener.listener_ptr,
+                selector,
+                not_an_activity,
+                not_an_activity,
+                &raw mut block,
+            );
+        }
+
+        assert_eq!(HANDLED.load(Ordering::SeqCst), 0);
+        assert!(!called.load(Ordering::SeqCst));
+        drop(listener);
+    }
+}
