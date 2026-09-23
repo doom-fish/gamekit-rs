@@ -65,8 +65,8 @@ impl Leaderboard {
                 time_scope_to_i32(time_scope),
                 range_location,
                 range_length,
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -103,8 +103,8 @@ impl Leaderboard {
                 leaderboard_id.as_ptr(),
                 player_ids_json.as_ptr(),
                 time_scope_to_i32(time_scope),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));

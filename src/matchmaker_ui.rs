@@ -120,7 +120,8 @@ impl Invite {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_invite_sender_json(self.ptr, &mut out_json, &mut out_error);
+            let status =
+                ffi::gk_invite_sender_json(self.ptr, &raw mut out_json, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -168,8 +169,10 @@ impl DialogController {
     ) -> Result<(), GameKitError> {
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status =
-                ffi::gk_dialog_present_matchmaker_view_controller(controller.ptr, &mut out_error);
+            let status = ffi::gk_dialog_present_matchmaker_view_controller(
+                controller.ptr,
+                &raw mut out_error,
+            );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -186,7 +189,7 @@ impl DialogController {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_dialog_present_turn_based_matchmaker_view_controller(
                 controller.ptr,
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -213,8 +216,8 @@ impl DialogController {
                 context.as_ptr(),
                 Some(CallbackContext::<GameCenterHandler>::RETAIN),
                 Some(CallbackContext::<GameCenterHandler>::RELEASE),
-                &mut out_ptr,
-                &mut out_error,
+                &raw mut out_ptr,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -238,7 +241,7 @@ impl DialogController {
     pub fn dismiss(&self) -> Result<(), GameKitError> {
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_dialog_dismiss(&mut out_error);
+            let status = ffi::gk_dialog_dismiss(&raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -262,8 +265,8 @@ impl MatchmakerViewController {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_matchmaker_view_controller_create(
                 request_json.as_ptr(),
-                &mut out_ptr,
-                &mut out_error,
+                &raw mut out_ptr,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -279,8 +282,8 @@ impl MatchmakerViewController {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_matchmaker_view_controller_create_with_invite(
                 invite.ptr,
-                &mut out_ptr,
-                &mut out_error,
+                &raw mut out_ptr,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -296,8 +299,8 @@ impl MatchmakerViewController {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_matchmaker_view_controller_match_request_json(
                 self.ptr,
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -366,7 +369,7 @@ impl MatchmakerViewController {
             let status = ffi::gk_matchmaker_view_controller_add_players_to_match(
                 self.ptr,
                 game_match.ptr,
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -390,7 +393,7 @@ impl MatchmakerViewController {
                 self.ptr,
                 game_player_id.as_ptr(),
                 connected,
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -462,8 +465,8 @@ impl TurnBasedMatchmakerViewController {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_turn_based_matchmaker_view_controller_create(
                 request_json.as_ptr(),
-                &mut out_ptr,
-                &mut out_error,
+                &raw mut out_ptr,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));

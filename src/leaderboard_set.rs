@@ -32,7 +32,7 @@ impl LeaderboardSet {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_leaderboard_sets_json(&mut out_json, &mut out_error);
+            let status = ffi::gk_leaderboard_sets_json(&raw mut out_json, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -55,8 +55,8 @@ impl LeaderboardSet {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_leaderboard_set_load_leaderboards_json(
                 identifier.as_ptr(),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -83,8 +83,8 @@ impl LeaderboardSet {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_leaderboard_set_load_image_json(
                 identifier.as_ptr(),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));

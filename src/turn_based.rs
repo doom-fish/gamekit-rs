@@ -230,8 +230,8 @@ impl TurnBasedMatch {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_turn_based_find_match_json(
                 request_json.as_ptr(),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -247,7 +247,8 @@ impl TurnBasedMatch {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_turn_based_load_matches_json(&mut out_json, &mut out_error);
+            let status =
+                ffi::gk_turn_based_load_matches_json(&raw mut out_json, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -266,8 +267,8 @@ impl TurnBasedMatch {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_turn_based_load_match_json(
                 match_id.as_ptr(),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -285,8 +286,11 @@ impl TurnBasedMatch {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status =
-                ffi::gk_turn_based_rematch_json(match_id.as_ptr(), &mut out_json, &mut out_error);
+            let status = ffi::gk_turn_based_rematch_json(
+                match_id.as_ptr(),
+                &raw mut out_json,
+                &raw mut out_error,
+            );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -305,8 +309,8 @@ impl TurnBasedMatch {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_turn_based_accept_invite_json(
                 match_id.as_ptr(),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -323,7 +327,7 @@ impl TurnBasedMatch {
 
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_turn_based_decline_invite(match_id.as_ptr(), &mut out_error);
+            let status = ffi::gk_turn_based_decline_invite(match_id.as_ptr(), &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -337,7 +341,7 @@ impl TurnBasedMatch {
 
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_turn_based_remove(match_id.as_ptr(), &mut out_error);
+            let status = ffi::gk_turn_based_remove(match_id.as_ptr(), &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -354,8 +358,8 @@ impl TurnBasedMatch {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_turn_based_load_match_data_json(
                 match_id.as_ptr(),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -376,7 +380,7 @@ impl TurnBasedMatch {
                 match_id.as_ptr(),
                 data.as_ptr(),
                 data.len(),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -403,7 +407,7 @@ impl TurnBasedMatch {
                 timeout_seconds,
                 data.as_ptr(),
                 data.len(),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -432,7 +436,7 @@ impl TurnBasedMatch {
                 timeout_seconds,
                 data.as_ptr(),
                 data.len(),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -453,7 +457,7 @@ impl TurnBasedMatch {
             let status = ffi::gk_turn_based_participant_quit_out_of_turn(
                 match_id.as_ptr(),
                 outcome.to_raw(),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -508,7 +512,7 @@ impl TurnBasedMatch {
                 achievements_json
                     .as_ref()
                     .map_or(std::ptr::null(), |json| json.as_ptr()),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -534,7 +538,7 @@ impl TurnBasedMatch {
                 data.as_ptr(),
                 data.len(),
                 resolved_indices.as_ptr(),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -569,8 +573,8 @@ impl TurnBasedMatch {
                 message_key.as_ptr(),
                 arguments.as_ptr(),
                 timeout_seconds,
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -599,7 +603,7 @@ impl TurnBasedMatch {
                 exchange_index,
                 message_key.as_ptr(),
                 arguments.as_ptr(),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -629,7 +633,7 @@ impl TurnBasedMatch {
                 arguments.as_ptr(),
                 data.as_ptr(),
                 data.len(),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -658,7 +662,7 @@ impl TurnBasedMatch {
                 participant_indices.as_ptr(),
                 message_key.as_ptr(),
                 arguments.as_ptr(),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));

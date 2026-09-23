@@ -155,8 +155,8 @@ impl LocalPlayer {
                 context.as_ptr(),
                 Some(CallbackContext::<ListenerHandler>::RETAIN),
                 Some(CallbackContext::<ListenerHandler>::RELEASE),
-                &mut out_listener_ptr,
-                &mut out_error,
+                &raw mut out_listener_ptr,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));

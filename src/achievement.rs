@@ -68,7 +68,7 @@ impl Achievement {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_achievement_load_json(&mut out_json, &mut out_error);
+            let status = ffi::gk_achievement_load_json(&raw mut out_json, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -118,7 +118,7 @@ impl Achievement {
     pub fn reset() -> Result<(), GameKitError> {
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_achievement_reset(&mut out_error);
+            let status = ffi::gk_achievement_reset(&raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -144,7 +144,8 @@ impl AchievementDescription {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_achievement_descriptions_json(&mut out_json, &mut out_error);
+            let status =
+                ffi::gk_achievement_descriptions_json(&raw mut out_json, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -173,7 +174,7 @@ fn report_payloads(payloads: &[AchievementInputPayload<'_>]) -> Result<(), GameK
 
     unsafe {
         let mut out_error: *mut c_char = std::ptr::null_mut();
-        let status = ffi::gk_achievement_report_json(json.as_ptr(), &mut out_error);
+        let status = ffi::gk_achievement_report_json(json.as_ptr(), &raw mut out_error);
         if status != ffi::status::OK {
             return Err(private::error_from_status(status, out_error));
         }

@@ -66,8 +66,8 @@ impl Leaderboard {
                 ids_json
                     .as_ref()
                     .map_or(std::ptr::null(), |json| json.as_ptr()),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -94,8 +94,8 @@ impl Leaderboard {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_leaderboard_load_previous_occurrence_json(
                 leaderboard_id.as_ptr(),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -117,8 +117,12 @@ impl Leaderboard {
 
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status =
-                ffi::gk_leaderboard_submit_score(score, context, ids_json.as_ptr(), &mut out_error);
+            let status = ffi::gk_leaderboard_submit_score(
+                score,
+                context,
+                ids_json.as_ptr(),
+                &raw mut out_error,
+            );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -137,7 +141,7 @@ impl Leaderboard {
                 score,
                 context,
                 leaderboard_id.as_ptr(),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));

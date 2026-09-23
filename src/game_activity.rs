@@ -195,8 +195,8 @@ impl GameActivityDefinition {
                 ids_json
                     .as_ref()
                     .map_or(std::ptr::null(), |json| json.as_ptr()),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -225,8 +225,8 @@ impl GameActivityDefinition {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_game_activity_definition_load_achievement_descriptions_json(
                 identifier.as_ptr(),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -251,8 +251,8 @@ impl GameActivityDefinition {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_game_activity_definition_load_leaderboards_json(
                 identifier.as_ptr(),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -277,8 +277,8 @@ impl GameActivityDefinition {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_game_activity_definition_load_image_tiff_json(
                 identifier.as_ptr(),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -317,7 +317,8 @@ impl GameActivity {
         unsafe {
             let mut out_pending = false;
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_game_activity_has_pending(&mut out_pending, &mut out_error);
+            let status =
+                ffi::gk_game_activity_has_pending(&raw mut out_pending, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -330,8 +331,10 @@ impl GameActivity {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status =
-                ffi::gk_game_activity_valid_party_code_alphabet_json(&mut out_json, &mut out_error);
+            let status = ffi::gk_game_activity_valid_party_code_alphabet_json(
+                &raw mut out_json,
+                &raw mut out_error,
+            );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -348,8 +351,8 @@ impl GameActivity {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_game_activity_is_valid_party_code(
                 party_code.as_ptr(),
-                &mut out_valid,
-                &mut out_error,
+                &raw mut out_valid,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -368,8 +371,11 @@ impl GameActivity {
         unsafe {
             let mut out_ptr: *mut c_void = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status =
-                ffi::gk_game_activity_create(identifier.as_ptr(), &mut out_ptr, &mut out_error);
+            let status = ffi::gk_game_activity_create(
+                identifier.as_ptr(),
+                &raw mut out_ptr,
+                &raw mut out_error,
+            );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -387,8 +393,11 @@ impl GameActivity {
         unsafe {
             let mut out_ptr: *mut c_void = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status =
-                ffi::gk_game_activity_start(identifier.as_ptr(), &mut out_ptr, &mut out_error);
+            let status = ffi::gk_game_activity_start(
+                identifier.as_ptr(),
+                &raw mut out_ptr,
+                &raw mut out_error,
+            );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -413,8 +422,8 @@ impl GameActivity {
             let status = ffi::gk_game_activity_start_with_party_code(
                 identifier.as_ptr(),
                 party_code.as_ptr(),
-                &mut out_ptr,
-                &mut out_error,
+                &raw mut out_ptr,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -428,8 +437,11 @@ impl GameActivity {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status =
-                ffi::gk_game_activity_snapshot_json(self.ptr, &mut out_json, &mut out_error);
+            let status = ffi::gk_game_activity_snapshot_json(
+                self.ptr,
+                &raw mut out_json,
+                &raw mut out_error,
+            );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -452,7 +464,7 @@ impl GameActivity {
             let status = ffi::gk_game_activity_set_properties_json(
                 self.ptr,
                 properties_json.as_ptr(),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -465,7 +477,7 @@ impl GameActivity {
     pub fn begin(&self) -> Result<(), GameKitError> {
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_game_activity_begin(self.ptr, &mut out_error);
+            let status = ffi::gk_game_activity_begin(self.ptr, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -477,7 +489,7 @@ impl GameActivity {
     pub fn pause(&self) -> Result<(), GameKitError> {
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_game_activity_pause(self.ptr, &mut out_error);
+            let status = ffi::gk_game_activity_pause(self.ptr, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -489,7 +501,7 @@ impl GameActivity {
     pub fn resume(&self) -> Result<(), GameKitError> {
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_game_activity_resume(self.ptr, &mut out_error);
+            let status = ffi::gk_game_activity_resume(self.ptr, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -501,7 +513,7 @@ impl GameActivity {
     pub fn end(&self) -> Result<(), GameKitError> {
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_game_activity_end(self.ptr, &mut out_error);
+            let status = ffi::gk_game_activity_end(self.ptr, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -516,8 +528,8 @@ impl GameActivity {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_game_activity_make_match_request_json(
                 self.ptr,
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -542,8 +554,11 @@ impl GameActivity {
         unsafe {
             let mut out_match_ptr: *mut c_void = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status =
-                ffi::gk_game_activity_find_match(self.ptr, &mut out_match_ptr, &mut out_error);
+            let status = ffi::gk_game_activity_find_match(
+                self.ptr,
+                &raw mut out_match_ptr,
+                &raw mut out_error,
+            );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -558,8 +573,8 @@ impl GameActivity {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_game_activity_find_hosted_players_json(
                 self.ptr,
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -581,7 +596,7 @@ impl GameActivity {
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status =
-                ffi::gk_game_activity_set_score_json(self.ptr, json.as_ptr(), &mut out_error);
+                ffi::gk_game_activity_set_score_json(self.ptr, json.as_ptr(), &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -596,8 +611,11 @@ impl GameActivity {
 
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status =
-                ffi::gk_game_activity_remove_scores(self.ptr, ids_json.as_ptr(), &mut out_error);
+            let status = ffi::gk_game_activity_remove_scores(
+                self.ptr,
+                ids_json.as_ptr(),
+                &raw mut out_error,
+            );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -620,8 +638,11 @@ impl GameActivity {
 
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status =
-                ffi::gk_game_activity_set_progress_json(self.ptr, json.as_ptr(), &mut out_error);
+            let status = ffi::gk_game_activity_set_progress_json(
+                self.ptr,
+                json.as_ptr(),
+                &raw mut out_error,
+            );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -647,7 +668,7 @@ impl GameActivity {
             let status = ffi::gk_game_activity_complete_achievement_json(
                 self.ptr,
                 json.as_ptr(),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -677,7 +698,7 @@ impl GameActivity {
             let status = ffi::gk_game_activity_remove_achievements_json(
                 self.ptr,
                 json.as_ptr(),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));

@@ -71,7 +71,8 @@ impl Match {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_match_players_json(self.ptr, &mut out_json, &mut out_error);
+            let status =
+                ffi::gk_match_players_json(self.ptr, &raw mut out_json, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -84,8 +85,11 @@ impl Match {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status =
-                ffi::gk_match_connected_players_json(self.ptr, &mut out_json, &mut out_error);
+            let status = ffi::gk_match_connected_players_json(
+                self.ptr,
+                &raw mut out_json,
+                &raw mut out_error,
+            );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -116,7 +120,7 @@ impl Match {
                 data.len(),
                 ids_json.as_ptr(),
                 send_mode_to_i32(mode),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -134,7 +138,7 @@ impl Match {
                 data.as_ptr(),
                 data.len(),
                 send_mode_to_i32(mode),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -150,8 +154,8 @@ impl Match {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_match_choose_best_hosting_player_json(
                 self.ptr,
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -165,7 +169,8 @@ impl Match {
         unsafe {
             let mut out_match_ptr: *mut c_void = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_match_rematch(self.ptr, &mut out_match_ptr, &mut out_error);
+            let status =
+                ffi::gk_match_rematch(self.ptr, &raw mut out_match_ptr, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }

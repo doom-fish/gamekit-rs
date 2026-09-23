@@ -106,7 +106,7 @@ impl AccessPoint {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_access_point_json(&mut out_json, &mut out_error);
+            let status = ffi::gk_access_point_json(&raw mut out_json, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }

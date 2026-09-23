@@ -112,8 +112,8 @@ impl Matchmaker {
                 std::ptr::null_mut(),
                 None,
                 None,
-                &mut out_match_ptr,
-                &mut out_error,
+                &raw mut out_match_ptr,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -142,8 +142,8 @@ impl Matchmaker {
                 context.as_ptr(),
                 Some(RecipientResponseContext::RETAIN),
                 Some(RecipientResponseContext::RELEASE),
-                &mut out_match_ptr,
-                &mut out_error,
+                &raw mut out_match_ptr,
+                &raw mut out_error,
             );
             drop(context);
             if status != ffi::status::OK {
@@ -166,8 +166,8 @@ impl Matchmaker {
                 std::ptr::null_mut(),
                 None,
                 None,
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -196,8 +196,8 @@ impl Matchmaker {
                 context.as_ptr(),
                 Some(RecipientResponseContext::RETAIN),
                 Some(RecipientResponseContext::RELEASE),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             drop(context);
             if status != ffi::status::OK {
@@ -219,8 +219,8 @@ impl Matchmaker {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_matchmaker_find_matched_players_json(
                 request_json.as_ptr(),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -244,7 +244,7 @@ impl Matchmaker {
             let status = ffi::gk_matchmaker_add_players_to_match(
                 existing_match.ptr,
                 request_json.as_ptr(),
-                &mut out_error,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -274,8 +274,8 @@ impl Matchmaker {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_matchmaker_query_player_group_activity(
                 player_group,
-                &mut out_activity,
-                &mut out_error,
+                &raw mut out_activity,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -289,7 +289,8 @@ impl Matchmaker {
         unsafe {
             let mut out_activity = 0_i64;
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_matchmaker_query_activity(&mut out_activity, &mut out_error);
+            let status =
+                ffi::gk_matchmaker_query_activity(&raw mut out_activity, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }

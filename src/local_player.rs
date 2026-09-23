@@ -62,7 +62,7 @@ impl LocalPlayer {
         let payload: LocalPlayerPayload = unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_local_player_json(&mut out_json, &mut out_error);
+            let status = ffi::gk_local_player_json(&raw mut out_json, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -86,8 +86,10 @@ impl LocalPlayer {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status =
-                ffi::gk_local_player_load_recent_players_json(&mut out_json, &mut out_error);
+            let status = ffi::gk_local_player_load_recent_players_json(
+                &raw mut out_json,
+                &raw mut out_error,
+            );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -100,8 +102,10 @@ impl LocalPlayer {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status =
-                ffi::gk_local_player_load_challengable_friends_json(&mut out_json, &mut out_error);
+            let status = ffi::gk_local_player_load_challengable_friends_json(
+                &raw mut out_json,
+                &raw mut out_error,
+            );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -116,8 +120,8 @@ impl LocalPlayer {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_local_player_fetch_identity_verification_signature_json(
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -132,8 +136,8 @@ impl LocalPlayer {
             let mut out_status = 0_i32;
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_local_player_load_friends_authorization_status(
-                &mut out_status,
-                &mut out_error,
+                &raw mut out_status,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -152,7 +156,8 @@ impl LocalPlayer {
         unsafe {
             let mut out_json: *mut c_char = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_local_player_load_friends_json(&mut out_json, &mut out_error);
+            let status =
+                ffi::gk_local_player_load_friends_json(&raw mut out_json, &raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
@@ -169,8 +174,8 @@ impl LocalPlayer {
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_local_player_load_friends_by_identifiers_json(
                 ids_json.as_ptr(),
-                &mut out_json,
-                &mut out_error,
+                &raw mut out_json,
+                &raw mut out_error,
             );
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
@@ -196,7 +201,7 @@ impl LocalPlayer {
     pub fn present_friend_request_creator() -> Result<(), GameKitError> {
         unsafe {
             let mut out_error: *mut c_char = std::ptr::null_mut();
-            let status = ffi::gk_local_player_present_friend_request(&mut out_error);
+            let status = ffi::gk_local_player_present_friend_request(&raw mut out_error);
             if status != ffi::status::OK {
                 return Err(private::error_from_status(status, out_error));
             }
