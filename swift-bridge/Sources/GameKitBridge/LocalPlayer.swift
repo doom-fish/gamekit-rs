@@ -193,6 +193,7 @@ public func gk_local_player_load_friends_authorization_status(
     gkBlockOnAsync(
         work: {
             try Task.checkCancellation()
+            try gkRequireBundleIdentifier("loading the friends authorization status")
             return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GKFriendsAuthorizationStatus, Error>) in
                 GKLocalPlayer.local.loadFriendsAuthorizationStatus { status, error in
                     if let error {
@@ -220,6 +221,7 @@ public func gk_local_player_load_friends_json(
     gkBlockOnAsync(
         work: {
             try Task.checkCancellation()
+            try gkRequireBundleIdentifier("loading friends")
             return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[GKPlayer], Error>) in
                 GKLocalPlayer.local.loadFriends { friends, error in
                     if let error {

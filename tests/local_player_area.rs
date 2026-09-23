@@ -2,8 +2,8 @@ mod common;
 
 use common::sample_local_player;
 use gamekit::{
-    AuthEvent, BasePlayer, FriendsAuthorizationStatus, IdentityVerificationSignature,
-    PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME,
+    AuthEvent, BasePlayer, FriendsAuthorizationStatus, GameKitError, IdentityVerificationSignature,
+    LocalPlayer, PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME,
 };
 use serde_json::json;
 
@@ -39,5 +39,24 @@ fn local_player_area_exposes_identity_and_auth_views() {
     assert_eq!(
         PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME,
         "GKPlayerAuthenticationDidChangeNotificationName"
+    );
+}
+
+#[test]
+fn friend_apis_without_a_bundle_identifier_return_errors() {
+    let status = LocalPlayer::load_friends_authorization_status();
+    assert!(
+        matches!(status, Err(GameKitError::Unavailable(_))),
+        "friends authorization: {status:?}"
+    );
+    let friends = LocalPlayer::load_friends();
+    assert!(
+        matches!(friends, Err(GameKitError::Unavailable(_))),
+        "friends: {friends:?}"
+    );
+    let identified = LocalPlayer::load_friends_identified_by(&["G:1"]);
+    assert!(
+        matches!(identified, Err(GameKitError::Unavailable(_))),
+        "friends by identifier: {identified:?}"
     );
 }

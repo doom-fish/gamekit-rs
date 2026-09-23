@@ -135,6 +135,14 @@ func gkCopyData(_ bytes: UnsafePointer<UInt8>?, _ count: Int) -> Data {
     return Data(bytes: bytes, count: count)
 }
 
+func gkRequireBundleIdentifier(_ operation: String) throws {
+    guard Bundle.main.bundleIdentifier != nil else {
+        throw GKBridgeError.unavailable(
+            "\(operation) requires the process to have a bundle identifier; GameKit raises an exception without one"
+        )
+    }
+}
+
 func gkRequireMainThread(_ operation: String) throws {
     guard Thread.isMainThread else {
         throw GKBridgeError.wrongThread("\(operation) must be called on the main thread")
@@ -239,6 +247,7 @@ func gkLoadPlayers(identifiedBy ids: [String]) async throws -> [GKPlayer] {
         return []
     }
 
+    try gkRequireBundleIdentifier("loading players by identifier")
     return try await withCheckedThrowingContinuation { continuation in
         GKLocalPlayer.local.loadFriends(identifiedBy: ids) { players, error in
             if let error {

@@ -59,6 +59,7 @@ public func gk_local_player_load_friends_authorization_async(
 ) {
     Task {
         do {
+            try gkRequireBundleIdentifier("loading the friends authorization status")
             let status = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<GKFriendsAuthorizationStatus, Error>) in
                 GKLocalPlayer.local.loadFriendsAuthorizationStatus { status, error in
                     if let error { cont.resume(throwing: error) }
