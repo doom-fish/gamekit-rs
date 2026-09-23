@@ -41,9 +41,11 @@ unsafe extern "C" {
         state_cb: Option<unsafe extern "C" fn(*mut c_void, *const c_char, i32)>,
         failure_cb: Option<unsafe extern "C" fn(*mut c_void, *const c_char)>,
         refcon: *mut c_void,
-    );
+        retain: Option<unsafe extern "C" fn(*mut c_void)>,
+        release: Option<unsafe extern "C" fn(*mut c_void)>,
+    ) -> u64;
 
-    pub fn gk_match_clear_callbacks(ptr: *mut c_void);
+    pub fn gk_match_clear_callbacks(ptr: *mut c_void, token: u64);
     pub fn gk_match_disconnect(ptr: *mut c_void);
 
     pub fn gk_match_choose_best_hosting_player_json(

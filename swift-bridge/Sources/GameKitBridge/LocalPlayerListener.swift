@@ -26,10 +26,23 @@ struct GKLocalPlayerEventPayload: Encodable {
 final class GKLocalPlayerListenerImpl: NSObject, GKLocalPlayerListener {
     let callback: GKLocalPlayerListenerCallbackFn
     let refcon: UnsafeMutableRawPointer?
+    let releaseContext: GKContextCallback?
 
-    init(callback: @escaping GKLocalPlayerListenerCallbackFn, refcon: UnsafeMutableRawPointer?) {
+    init(
+        callback: @escaping GKLocalPlayerListenerCallbackFn,
+        refcon: UnsafeMutableRawPointer?,
+        retainContext: GKContextCallback?,
+        releaseContext: GKContextCallback?
+    ) {
         self.callback = callback
         self.refcon = refcon
+        self.releaseContext = releaseContext
+        super.init()
+        retainContext?(refcon)
+    }
+
+    deinit {
+        releaseContext?(refcon)
     }
 
     @discardableResult
@@ -310,6 +323,8 @@ extension GKLocalPlayerListenerImpl {
 public func gk_local_player_listener_register(
     _ callback: GKLocalPlayerListenerCallbackFn?,
     _ refcon: UnsafeMutableRawPointer?,
+    _ retainContext: GKContextCallback?,
+    _ releaseContext: GKContextCallback?,
     _ outListenerPtr: UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
     _ outError: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
@@ -318,17 +333,26 @@ public func gk_local_player_listener_register(
         return GK_UNKNOWN
     }
 
-    let listener = GKLocalPlayerListenerImpl(callback: callback, refcon: refcon)
-    GKLocalPlayer.local.register(listener)
-    outListenerPtr?.pointee = gk_retain(listener)
+    autoreleasepool {
+        let listener = GKLocalPlayerListenerImpl(
+            callback: callback,
+            refcon: refcon,
+            retainContext: retainContext,
+            releaseContext: releaseContext
+        )
+        GKLocalPlayer.local.register(listener)
+        outListenerPtr?.pointee = gk_retain(listener)
+    }
     return GK_OK
 }
 
 @_cdecl("gk_local_player_listener_unregister")
 public func gk_local_player_listener_unregister(_ ptr: UnsafeMutableRawPointer?) {
     guard let ptr else { return }
-    let listener = gk_borrow(ptr, as: GKLocalPlayerListenerImpl.self)
-    GKLocalPlayer.local.unregisterListener(listener)
+    autoreleasepool {
+        let listener = gk_borrow(ptr, as: GKLocalPlayerListenerImpl.self)
+        GKLocalPlayer.local.unregisterListener(listener)
+    }
     gk_release(ptr)
 }
 

@@ -98,3 +98,19 @@ fn sign_in_view_controller_requires_the_main_thread() {
         "sign-in view controller off the main thread: {result:?}"
     );
 }
+
+#[test]
+fn local_player_listeners_release_their_handlers() {
+    let probe = Arc::new(());
+    let listener = {
+        let probe = Arc::clone(&probe);
+        LocalPlayer::register_listener(move |_| {
+            let _ = &probe;
+            false
+        })
+        .expect("register listener")
+    };
+    assert_eq!(Arc::strong_count(&probe), 2);
+    drop(listener);
+    assert_eq!(Arc::strong_count(&probe), 1);
+}

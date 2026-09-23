@@ -1,9 +1,10 @@
 use core::ffi::{c_char, c_void};
 use std::ffi::CStr;
+use std::sync::{Mutex, PoisonError};
 
 use serde::Deserialize;
 
-use doom_fish_utils::panic_safe::catch_user_panic;
+use doom_fish_utils::callback_context::CallbackContext;
 
 use crate::{ffi, private, GameKitError, Player};
 
@@ -174,23 +175,23 @@ impl Match {
 
     /// Sets a delegate to receive match events.
     pub fn set_delegate<F: Fn(MatchEvent) + Send + 'static>(&self, handler: F) -> MatchDelegate {
-        let boxed: Box<dyn Fn(MatchEvent) + Send + 'static> = Box::new(handler);
-        let handler_ptr: *mut Box<dyn Fn(MatchEvent) + Send + 'static> =
-            Box::into_raw(Box::new(boxed));
-
-        unsafe {
+        let context: CallbackContext<MatchHandler> = CallbackContext::new(Mutex::new(Box::new(handler)));
+        let token = unsafe {
             ffi::gk_match_set_callbacks(
                 self.ptr,
                 Some(match_data_trampoline),
                 Some(match_state_trampoline),
                 Some(match_failure_trampoline),
-                handler_ptr.cast(),
-            );
-        }
+                context.as_ptr(),
+                Some(CallbackContext::<MatchHandler>::RETAIN),
+                Some(CallbackContext::<MatchHandler>::RELEASE),
+            )
+        };
 
         MatchDelegate {
             match_ptr: unsafe { ffi::gk_match_retain(self.ptr) },
-            handler_ptr,
+            token,
+            context,
         }
     }
 
@@ -209,6 +210,8 @@ crate::utils::retained::gk_retained!(
     release = ffi::gk_match_release,
 );
 
+type MatchHandler = Mutex<Box<dyn Fn(MatchEvent) + Send + 'static>>;
+
 /// A guard that manages match event callbacks. Clears callbacks when dropped.
 pub struct MatchDelegate {
     /// Retained `GKMatch` pointer (+1 taken in `Match::set_delegate`). Owning a
@@ -216,22 +219,29 @@ pub struct MatchDelegate {
     /// run against a freed object even if the originating `Match` is dropped
     /// first.
     match_ptr: *mut c_void,
-    handler_ptr: *mut Box<dyn Fn(MatchEvent) + Send + 'static>,
+    token: u64,
+    context: CallbackContext<MatchHandler>,
 }
 
-/// SAFETY: `MatchDelegate` owns a raw handler pointer that is never accessed
-/// from multiple threads simultaneously; the match delegate callbacks are
-/// serialised by the `GameKit` runtime.
+/// SAFETY: `match_ptr` is a retained match box whose delegate registration is
+/// lock-protected in Swift, and the handler lives in a `Send + Sync` context.
 unsafe impl Send for MatchDelegate {}
 
 impl Drop for MatchDelegate {
     fn drop(&mut self) {
+        self.context.deactivate();
         unsafe {
-            ffi::gk_match_clear_callbacks(self.match_ptr);
+            ffi::gk_match_clear_callbacks(self.match_ptr, self.token);
             ffi::gk_match_release(self.match_ptr);
-            drop(Box::from_raw(self.handler_ptr));
         }
     }
+}
+
+unsafe fn deliver_match_event(refcon: *mut c_void, site: &str, event: MatchEvent) {
+    let _ = CallbackContext::<MatchHandler>::with(refcon, site, |handler| {
+        let handler = handler.lock().unwrap_or_else(PoisonError::into_inner);
+        handler(event);
+    });
 }
 
 unsafe extern "C" fn match_data_trampoline(
@@ -240,10 +250,11 @@ unsafe extern "C" fn match_data_trampoline(
     data: *const u8,
     len: usize,
 ) {
-    // SAFETY: refcon is a valid `Box<Box<dyn Fn(MatchEvent) + Send>>` allocated in
-    // `Match::set_delegate` and kept alive by `MatchDelegate`.
+    // SAFETY: refcon is the delegate's `CallbackContext`, retained by the Swift registration.
     // `data` is a valid buffer of `len` bytes for the duration of this callback.
-    let handler = &*(refcon.cast::<Box<dyn Fn(MatchEvent) + Send + 'static>>());
+    if player_json.is_null() {
+        return;
+    }
     if let Ok(player_str) = CStr::from_ptr(player_json).to_str() {
         if let Ok(player) = serde_json::from_str::<Player>(player_str) {
             // `std::slice::from_raw_parts` requires a non-null, aligned pointer
@@ -255,12 +266,14 @@ unsafe extern "C" fn match_data_trampoline(
             } else {
                 std::slice::from_raw_parts(data, len).to_vec()
             };
-            catch_user_panic("match_data_trampoline", || {
-                handler(MatchEvent::ReceivedData {
+            deliver_match_event(
+                refcon,
+                "match_data_trampoline",
+                MatchEvent::ReceivedData {
                     player,
                     data: data_vec,
-                });
-            });
+                },
+            );
         }
     }
 }
@@ -270,29 +283,30 @@ unsafe extern "C" fn match_state_trampoline(
     player_json: *const c_char,
     state: i32,
 ) {
-    // SAFETY: refcon is a valid `Box<Box<dyn Fn(MatchEvent) + Send>>` allocated in
-    // `Match::set_delegate` and kept alive by `MatchDelegate`.
-    let handler = &*(refcon.cast::<Box<dyn Fn(MatchEvent) + Send + 'static>>());
+    // SAFETY: refcon is the delegate's `CallbackContext`, retained by the Swift registration.
+    if player_json.is_null() {
+        return;
+    }
     if let Ok(player_str) = CStr::from_ptr(player_json).to_str() {
         if let Ok(player) = serde_json::from_str::<Player>(player_str) {
-            catch_user_panic("match_state_trampoline", || {
-                handler(MatchEvent::ConnectionStateChanged {
+            deliver_match_event(
+                refcon,
+                "match_state_trampoline",
+                MatchEvent::ConnectionStateChanged {
                     player,
                     state: match state {
                         1 => ConnectionState::Connected,
                         2 => ConnectionState::Disconnected,
                         _ => ConnectionState::Unknown,
                     },
-                });
-            });
+                },
+            );
         }
     }
 }
 
 unsafe extern "C" fn match_failure_trampoline(refcon: *mut c_void, error_json: *const c_char) {
-    // SAFETY: refcon is a valid `Box<Box<dyn Fn(MatchEvent) + Send>>` allocated in
-    // `Match::set_delegate` and kept alive by `MatchDelegate`.
-    let handler = &*(refcon.cast::<Box<dyn Fn(MatchEvent) + Send + 'static>>());
+    // SAFETY: refcon is the delegate's `CallbackContext`, retained by the Swift registration.
     let error = if error_json.is_null() {
         None
     } else if let Ok(error_str) = CStr::from_ptr(error_json).to_str() {
@@ -300,14 +314,68 @@ unsafe extern "C" fn match_failure_trampoline(refcon: *mut c_void, error_json: *
     } else {
         None
     };
-    catch_user_panic("match_failure_trampoline", || {
-        handler(MatchEvent::Failed { error });
-    });
+    deliver_match_event(refcon, "match_failure_trampoline", MatchEvent::Failed { error });
 }
 
 const fn send_mode_to_i32(mode: SendDataMode) -> i32 {
     match mode {
         SendDataMode::Reliable => 0,
         SendDataMode::Unreliable => 1,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::CString;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    use doom_fish_utils::callback_context::CallbackContext;
+
+    use super::{
+        match_data_trampoline, match_failure_trampoline, match_state_trampoline, MatchEvent,
+        MatchHandler,
+    };
+
+    fn player_json() -> CString {
+        CString::new(
+            r#"{"gamePlayerID":"G:1","teamPlayerID":"T:1","alias":"a","displayName":"d","isInvitable":true,"scopedIDsArePersistent":true}"#,
+        )
+        .expect("player json")
+    }
+
+    #[test]
+    fn match_events_stop_after_the_delegate_is_dropped() {
+        let events = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&events);
+        let context: CallbackContext<MatchHandler> =
+            CallbackContext::new(Mutex::new(Box::new(move |event: MatchEvent| {
+                if let MatchEvent::ReceivedData { data, .. } = event {
+                    assert_eq!(data, vec![1, 2, 3]);
+                }
+                counter.fetch_add(1, Ordering::SeqCst);
+            })));
+        let swift_reference = context.retained_ptr();
+        let player = player_json();
+        let payload = [1_u8, 2, 3];
+
+        unsafe {
+            match_data_trampoline(swift_reference, player.as_ptr(), payload.as_ptr(), payload.len());
+            match_state_trampoline(swift_reference, player.as_ptr(), 1);
+            match_failure_trampoline(swift_reference, std::ptr::null());
+        }
+        assert_eq!(events.load(Ordering::SeqCst), 3);
+
+        drop(context);
+        unsafe {
+            match_data_trampoline(swift_reference, player.as_ptr(), payload.as_ptr(), payload.len());
+            match_state_trampoline(swift_reference, std::ptr::null(), 2);
+            match_failure_trampoline(swift_reference, std::ptr::null());
+        }
+        assert_eq!(events.load(Ordering::SeqCst), 3);
+        assert_eq!(Arc::strong_count(&events), 2);
+
+        unsafe { (CallbackContext::<MatchHandler>::RELEASE)(swift_reference) };
+        assert_eq!(Arc::strong_count(&events), 1);
     }
 }

@@ -1,9 +1,10 @@
 use core::ffi::{c_char, c_void};
 use std::ffi::CStr;
+use std::sync::{Mutex, PoisonError};
 
 use serde::Deserialize;
 
-use doom_fish_utils::panic_safe::catch_user_panic;
+use doom_fish_utils::callback_context::CallbackContext;
 
 use crate::{
     ffi, private, GameActivitySnapshot, GameKitError, Invite, LocalPlayer, Player, SavedGame,
@@ -68,15 +69,16 @@ pub enum LocalPlayerEvent {
     },
 }
 
+type ListenerHandler = Mutex<Box<dyn Fn(LocalPlayerEvent) -> bool + Send + 'static>>;
+
 /// Guard that keeps a `GKLocalPlayerListener` registration alive.
 pub struct LocalPlayerListener {
     listener_ptr: *mut c_void,
-    handler_ptr: *mut Box<dyn Fn(LocalPlayerEvent) -> bool + Send + 'static>,
+    context: CallbackContext<ListenerHandler>,
 }
 
-/// SAFETY: `LocalPlayerListener` holds raw pointers to an Obj-C listener
-/// object and a heap-allocated handler. Both are accessed only on the
-/// `GameKit` callback thread or the thread that drops the guard, never concurrently.
+/// SAFETY: `listener_ptr` is a retained Obj-C listener that is only unregistered and released
+/// in drop, and the handler lives in a `Send + Sync` context.
 unsafe impl Send for LocalPlayerListener {}
 
 #[derive(Debug, Deserialize)]
@@ -142,27 +144,27 @@ impl LocalPlayer {
     pub fn register_listener<F: Fn(LocalPlayerEvent) -> bool + Send + 'static>(
         handler: F,
     ) -> Result<LocalPlayerListener, GameKitError> {
-        let boxed: Box<dyn Fn(LocalPlayerEvent) -> bool + Send + 'static> = Box::new(handler);
-        let handler_ptr: *mut Box<dyn Fn(LocalPlayerEvent) -> bool + Send + 'static> =
-            Box::into_raw(Box::new(boxed));
+        let context: CallbackContext<ListenerHandler> =
+            CallbackContext::new(Mutex::new(Box::new(handler)));
 
         unsafe {
             let mut out_listener_ptr: *mut c_void = std::ptr::null_mut();
             let mut out_error: *mut c_char = std::ptr::null_mut();
             let status = ffi::gk_local_player_listener_register(
                 Some(local_player_listener_trampoline),
-                handler_ptr.cast(),
+                context.as_ptr(),
+                Some(CallbackContext::<ListenerHandler>::RETAIN),
+                Some(CallbackContext::<ListenerHandler>::RELEASE),
                 &mut out_listener_ptr,
                 &mut out_error,
             );
             if status != ffi::status::OK {
-                drop(Box::from_raw(handler_ptr));
                 return Err(private::error_from_status(status, out_error));
             }
 
             Ok(LocalPlayerListener {
                 listener_ptr: out_listener_ptr,
-                handler_ptr,
+                context,
             })
         }
     }
@@ -177,9 +179,9 @@ impl LocalPlayer {
 
 impl Drop for LocalPlayerListener {
     fn drop(&mut self) {
+        self.context.deactivate();
         unsafe {
             ffi::gk_local_player_listener_unregister(self.listener_ptr);
-            drop(Box::from_raw(self.handler_ptr));
         }
     }
 }
@@ -190,10 +192,6 @@ unsafe extern "C" fn local_player_listener_trampoline(
     payload_json: *const c_char,
     raw_ptr: *mut c_void,
 ) -> i32 {
-    // SAFETY: refcon is a valid `Box<Box<dyn Fn(LocalPlayerEvent) -> bool + Send>>` allocated
-    // in `LocalPlayer::register_listener` and kept alive by `LocalPlayerListener`.
-    let handler = &*(refcon.cast::<Box<dyn Fn(LocalPlayerEvent) -> bool + Send + 'static>>());
-
     let Some(payload) = parse_event_payload(payload_json) else {
         return 0;
     };
@@ -201,11 +199,13 @@ unsafe extern "C" fn local_player_listener_trampoline(
         return 0;
     };
 
-    let mut result = 0i32;
-    catch_user_panic("local_player_listener_trampoline", || {
-        result = i32::from(handler(event));
-    });
-    result
+    // SAFETY: refcon is the listener's `CallbackContext`, retained by the Swift listener object
+    // until it is deallocated.
+    CallbackContext::<ListenerHandler>::with(refcon, "local_player_listener_trampoline", |handler| {
+        let handler = handler.lock().unwrap_or_else(PoisonError::into_inner);
+        i32::from(handler(event))
+    })
+    .unwrap_or(0)
 }
 
 unsafe fn event_from_payload(

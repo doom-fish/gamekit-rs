@@ -19,14 +19,80 @@ public typealias GKMatchFailureCallbackFn = @convention(c) (
     UnsafePointer<CChar>?
 ) -> Void
 
+final class GKMatchCallbackRegistration {
+    let token: UInt64
+    let dataCallback: GKMatchDataCallbackFn?
+    let stateCallback: GKMatchStateCallbackFn?
+    let failureCallback: GKMatchFailureCallbackFn?
+    let refcon: UnsafeMutableRawPointer?
+    let releaseContext: GKContextCallback?
+
+    init(
+        token: UInt64,
+        dataCallback: GKMatchDataCallbackFn?,
+        stateCallback: GKMatchStateCallbackFn?,
+        failureCallback: GKMatchFailureCallbackFn?,
+        refcon: UnsafeMutableRawPointer?,
+        retainContext: GKContextCallback?,
+        releaseContext: GKContextCallback?
+    ) {
+        self.token = token
+        self.dataCallback = dataCallback
+        self.stateCallback = stateCallback
+        self.failureCallback = failureCallback
+        self.refcon = refcon
+        self.releaseContext = releaseContext
+        retainContext?(refcon)
+    }
+
+    deinit {
+        releaseContext?(refcon)
+    }
+}
+
+private let gkMatchTokenLock = NSLock()
+private var gkNextMatchToken: UInt64 = 1
+
+private func gkMakeMatchToken() -> UInt64 {
+    gkMatchTokenLock.lock()
+    defer { gkMatchTokenLock.unlock() }
+    let token = gkNextMatchToken
+    gkNextMatchToken += 1
+    return token
+}
+
 final class GKMatchDelegateImpl: NSObject, GKMatchDelegate {
-    var dataCallback: GKMatchDataCallbackFn?
-    var stateCallback: GKMatchStateCallbackFn?
-    var failureCallback: GKMatchFailureCallbackFn?
-    var refcon: UnsafeMutableRawPointer?
+    private let lock = NSLock()
+    private var registration: GKMatchCallbackRegistration?
+
+    func install(_ newRegistration: GKMatchCallbackRegistration) {
+        lock.lock()
+        let previous = registration
+        registration = newRegistration
+        lock.unlock()
+        _ = previous
+    }
+
+    func clear(token: UInt64) {
+        lock.lock()
+        var removed: GKMatchCallbackRegistration?
+        if registration?.token == token {
+            removed = registration
+            registration = nil
+        }
+        lock.unlock()
+        _ = removed
+    }
+
+    private func current() -> GKMatchCallbackRegistration? {
+        lock.lock()
+        defer { lock.unlock() }
+        return registration
+    }
 
     func match(_ match: GKMatch, didReceive data: Data, fromRemotePlayer player: GKPlayer) {
-        guard let callback = dataCallback,
+        guard let registration = current(),
+              let callback = registration.dataCallback,
               let playerJSON = try? gkEncodeJSON(gkPlayerPayload(from: player)),
               let playerCString = gkCString(playerJSON)
         else {
@@ -34,13 +100,16 @@ final class GKMatchDelegateImpl: NSObject, GKMatchDelegate {
         }
 
         defer { free(playerCString) }
-        data.withUnsafeBytes { bytes in
-            callback(refcon, UnsafePointer(playerCString), bytes.bindMemory(to: UInt8.self).baseAddress, data.count)
+        withExtendedLifetime(registration) {
+            data.withUnsafeBytes { bytes in
+                callback(registration.refcon, UnsafePointer(playerCString), bytes.bindMemory(to: UInt8.self).baseAddress, data.count)
+            }
         }
     }
 
     func match(_ match: GKMatch, player: GKPlayer, didChange state: GKPlayerConnectionState) {
-        guard let callback = stateCallback,
+        guard let registration = current(),
+              let callback = registration.stateCallback,
               let playerJSON = try? gkEncodeJSON(gkPlayerPayload(from: player)),
               let playerCString = gkCString(playerJSON)
         else {
@@ -57,14 +126,25 @@ final class GKMatchDelegateImpl: NSObject, GKMatchDelegate {
         default:
             stateValue = 0
         }
-        callback(refcon, UnsafePointer(playerCString), stateValue)
+        withExtendedLifetime(registration) {
+            callback(registration.refcon, UnsafePointer(playerCString), stateValue)
+        }
     }
 
     func match(_ match: GKMatch, didFailWithError error: Error?) {
-        guard let callback = failureCallback else {
+        guard let registration = current(), let callback = registration.failureCallback else {
             return
         }
+        withExtendedLifetime(registration) {
+            deliverFailure(callback, registration.refcon, error)
+        }
+    }
 
+    private func deliverFailure(
+        _ callback: GKMatchFailureCallbackFn,
+        _ refcon: UnsafeMutableRawPointer?,
+        _ error: Error?
+    ) {
         guard let error else {
             callback(refcon, nil)
             return
@@ -216,24 +296,29 @@ public func gk_match_set_callbacks(
     _ dataCb: GKMatchDataCallbackFn?,
     _ stateCb: GKMatchStateCallbackFn?,
     _ failureCb: GKMatchFailureCallbackFn?,
-    _ refcon: UnsafeMutableRawPointer?
-) {
-    guard let ptr else { return }
+    _ refcon: UnsafeMutableRawPointer?,
+    _ retainContext: GKContextCallback?,
+    _ releaseContext: GKContextCallback?
+) -> UInt64 {
+    guard let ptr else { return 0 }
     let box = gk_borrow(ptr, as: GKMatchBox.self)
-    box.delegate.dataCallback = dataCb
-    box.delegate.stateCallback = stateCb
-    box.delegate.failureCallback = failureCb
-    box.delegate.refcon = refcon
+    let registration = GKMatchCallbackRegistration(
+        token: gkMakeMatchToken(),
+        dataCallback: dataCb,
+        stateCallback: stateCb,
+        failureCallback: failureCb,
+        refcon: refcon,
+        retainContext: retainContext,
+        releaseContext: releaseContext
+    )
+    box.delegate.install(registration)
+    return registration.token
 }
 
 @_cdecl("gk_match_clear_callbacks")
-public func gk_match_clear_callbacks(_ ptr: UnsafeMutableRawPointer?) {
+public func gk_match_clear_callbacks(_ ptr: UnsafeMutableRawPointer?, _ token: UInt64) {
     guard let ptr else { return }
-    let box = gk_borrow(ptr, as: GKMatchBox.self)
-    box.delegate.dataCallback = nil
-    box.delegate.stateCallback = nil
-    box.delegate.failureCallback = nil
-    box.delegate.refcon = nil
+    gk_borrow(ptr, as: GKMatchBox.self).delegate.clear(token: token)
 }
 
 @_cdecl("gk_match_disconnect")
