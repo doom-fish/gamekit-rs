@@ -207,7 +207,7 @@ private func gkMakeGameCenterViewController(state: Int32) throws -> GKGameCenter
     return GKGameCenterViewController(state: viewState)
 }
 
-private func gkDialogControllerForPresentation() throws -> GKDialogController {
+func gkDialogControllerForPresentation() throws -> GKDialogController {
     let dialog = GKDialogController.shared()
     guard let window = NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow else {
         throw GKBridgeError.notFound("no main or key window is available for Game Center dialog presentation")

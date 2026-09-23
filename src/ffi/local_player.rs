@@ -9,9 +9,21 @@ unsafe extern "C" {
     pub fn gk_authenticate_handler_set(
         callback: Option<unsafe extern "C" fn(*mut c_void, *const c_char)>,
         refcon: *mut c_void,
-    );
+        retain: Option<unsafe extern "C" fn(*mut c_void)>,
+        release: Option<unsafe extern "C" fn(*mut c_void)>,
+    ) -> u64;
 
-    pub fn gk_authenticate_handler_clear();
+    pub fn gk_authenticate_handler_clear(token: u64);
+
+    pub fn gk_local_player_sign_in_view_controller(
+        out_ptr: *mut *mut c_void,
+        out_error: *mut *mut c_char,
+    ) -> i32;
+
+    pub fn gk_sign_in_view_controller_present(ptr: *mut c_void, out_error: *mut *mut c_char)
+        -> i32;
+
+    pub fn gk_view_controller_release(ptr: *mut c_void);
 
     pub fn gk_local_player_load_recent_players_json(
         out_json: *mut *mut c_char,

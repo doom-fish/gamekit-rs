@@ -1,9 +1,11 @@
 mod common;
 
 use common::sample_local_player;
+use std::sync::Arc;
+
 use gamekit::{
-    AuthEvent, BasePlayer, FriendsAuthorizationStatus, GameKitError, IdentityVerificationSignature,
-    LocalPlayer, PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME,
+    AuthEvent, AuthObserver, BasePlayer, FriendsAuthorizationStatus, GameKitError,
+    IdentityVerificationSignature, LocalPlayer, PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME,
 };
 use serde_json::json;
 
@@ -58,5 +60,41 @@ fn friend_apis_without_a_bundle_identifier_return_errors() {
     assert!(
         matches!(identified, Err(GameKitError::Unavailable(_))),
         "friends by identifier: {identified:?}"
+    );
+}
+
+#[test]
+fn auth_observers_release_their_handlers_independently() {
+    let first_probe = Arc::new(());
+    let second_probe = Arc::new(());
+    let first = {
+        let probe = Arc::clone(&first_probe);
+        AuthObserver::new(move |_| {
+            let _ = &probe;
+        })
+    };
+    let second = {
+        let probe = Arc::clone(&second_probe);
+        AuthObserver::new(move |_| {
+            let _ = &probe;
+        })
+    };
+    assert_eq!(Arc::strong_count(&first_probe), 2);
+    assert_eq!(Arc::strong_count(&second_probe), 2);
+
+    drop(first);
+    assert_eq!(Arc::strong_count(&first_probe), 1);
+    assert_eq!(Arc::strong_count(&second_probe), 2);
+
+    drop(second);
+    assert_eq!(Arc::strong_count(&second_probe), 1);
+}
+
+#[test]
+fn sign_in_view_controller_requires_the_main_thread() {
+    let result = LocalPlayer::sign_in_view_controller();
+    assert!(
+        matches!(result, Err(GameKitError::WrongThread(_))),
+        "sign-in view controller off the main thread: {result:?}"
     );
 }

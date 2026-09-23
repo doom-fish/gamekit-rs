@@ -1,9 +1,11 @@
 use core::ffi::{c_char, c_void};
+use core::ptr::NonNull;
 use std::ffi::CStr;
+use std::sync::{Mutex, PoisonError};
 
 use serde::Deserialize;
 
-use doom_fish_utils::panic_safe::catch_user_panic;
+use doom_fish_utils::callback_context::CallbackContext;
 
 use crate::{ffi, private, GameKitError, Player};
 
@@ -177,6 +179,19 @@ impl LocalPlayer {
         }
     }
 
+    pub fn sign_in_view_controller() -> Result<Option<SignInViewController>, GameKitError> {
+        unsafe {
+            let mut out_ptr: *mut c_void = std::ptr::null_mut();
+            let mut out_error: *mut c_char = std::ptr::null_mut();
+            let status =
+                ffi::gk_local_player_sign_in_view_controller(&raw mut out_ptr, &raw mut out_error);
+            if status != ffi::status::OK {
+                return Err(private::error_from_status(status, out_error));
+            }
+            Ok(NonNull::new(out_ptr).map(|ptr| SignInViewController { ptr }))
+        }
+    }
+
     /// Opens the macOS friend-request creator using the current app window, when available.
     pub fn present_friend_request_creator() -> Result<(), GameKitError> {
         unsafe {
@@ -207,45 +222,91 @@ pub struct AuthEventError {
     pub localized_description: String,
 }
 
+type AuthHandler = Mutex<Box<dyn Fn(AuthEvent) + Send + 'static>>;
+
 /// A guard that registers an authentication handler. The handler is cleared when dropped.
 pub struct AuthObserver {
-    handler_ptr: *mut Box<dyn Fn(AuthEvent) + Send + 'static>,
+    token: u64,
+    context: CallbackContext<AuthHandler>,
 }
-
-/// SAFETY: `AuthObserver` holds a raw pointer to a heap-allocated handler box.
-/// The handler is `Send`, and the pointer is only accessed from the `GameKit`
-/// callback thread or the thread that drops the observer, never concurrently.
-unsafe impl Send for AuthObserver {}
 
 impl AuthObserver {
     /// Creates a new authentication observer with the given handler.
     pub fn new<F: Fn(AuthEvent) + Send + 'static>(handler: F) -> Self {
-        let boxed: Box<dyn Fn(AuthEvent) + Send + 'static> = Box::new(handler);
-        let handler_ptr: *mut Box<dyn Fn(AuthEvent) + Send + 'static> =
-            Box::into_raw(Box::new(boxed));
-        unsafe {
-            ffi::gk_authenticate_handler_set(Some(auth_trampoline), handler_ptr.cast());
-        }
-        Self { handler_ptr }
+        let context: CallbackContext<AuthHandler> = CallbackContext::new(Mutex::new(Box::new(handler)));
+        let token = unsafe {
+            ffi::gk_authenticate_handler_set(
+                Some(auth_trampoline),
+                context.as_ptr(),
+                Some(CallbackContext::<AuthHandler>::RETAIN),
+                Some(CallbackContext::<AuthHandler>::RELEASE),
+            )
+        };
+        Self { token, context }
     }
 }
 
 impl Drop for AuthObserver {
     fn drop(&mut self) {
+        self.context.deactivate();
         unsafe {
-            ffi::gk_authenticate_handler_clear();
-            drop(Box::from_raw(self.handler_ptr));
+            ffi::gk_authenticate_handler_clear(self.token);
         }
     }
 }
 
 unsafe extern "C" fn auth_trampoline(refcon: *mut c_void, event_json: *const c_char) {
-    // SAFETY: refcon is a valid `Box<Box<dyn Fn(AuthEvent) + Send>>` created in
-    // `AuthObserver::new` and kept alive for the lifetime of the observer.
-    let handler = &*(refcon.cast::<Box<dyn Fn(AuthEvent) + Send + 'static>>());
-    if let Ok(event_str) = CStr::from_ptr(event_json).to_str() {
-        if let Ok(event) = serde_json::from_str::<AuthEvent>(event_str) {
-            catch_user_panic("auth_trampoline", || handler(event));
+    if event_json.is_null() {
+        return;
+    }
+    let Ok(event_str) = CStr::from_ptr(event_json).to_str() else {
+        return;
+    };
+    let Ok(event) = serde_json::from_str::<AuthEvent>(event_str) else {
+        return;
+    };
+    // SAFETY: refcon is the observer's `CallbackContext`; the Swift subscriber holds a reference
+    // to it until the subscription is removed and no dispatch is using it.
+    let _ = CallbackContext::<AuthHandler>::with(refcon, "auth_trampoline", |handler| {
+        let handler = handler.lock().unwrap_or_else(PoisonError::into_inner);
+        handler(event);
+    });
+}
+
+pub struct SignInViewController {
+    ptr: NonNull<c_void>,
+}
+
+impl SignInViewController {
+    pub fn present(&self) -> Result<(), GameKitError> {
+        unsafe {
+            let mut out_error: *mut c_char = std::ptr::null_mut();
+            let status =
+                ffi::gk_sign_in_view_controller_present(self.ptr.as_ptr(), &raw mut out_error);
+            if status != ffi::status::OK {
+                return Err(private::error_from_status(status, out_error));
+            }
+            Ok(())
         }
+    }
+
+    #[must_use]
+    pub const fn as_ptr(&self) -> *mut c_void {
+        self.ptr.as_ptr()
+    }
+}
+
+impl Drop for SignInViewController {
+    fn drop(&mut self) {
+        unsafe { ffi::gk_view_controller_release(self.ptr.as_ptr()) };
+    }
+}
+
+impl std::fmt::Debug for SignInViewController {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SignInViewController")
+            .field("ptr", &self.ptr)
+            .finish()
     }
 }

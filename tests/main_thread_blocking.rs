@@ -16,6 +16,12 @@ fn main() {
         "leaderboards on the main thread: {leaderboards:?}"
     );
 
+    let sign_in = LocalPlayer::sign_in_view_controller();
+    assert!(
+        matches!(sign_in, Ok(None)),
+        "sign-in view controller on the main thread: {sign_in:?}"
+    );
+
     assert!(started.elapsed() < Duration::from_secs(5));
     println!("test synchronous_calls_on_the_main_thread_fail_fast ... ok");
 }

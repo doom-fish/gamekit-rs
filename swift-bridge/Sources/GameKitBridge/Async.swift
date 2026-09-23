@@ -30,9 +30,12 @@ public func gk_local_player_authenticate_async(
 ) {
     let lock = NSLock()
     var fired = false
-    GKLocalPlayer.local.authenticateHandler = { viewController, error in
+    _ = GKAuthHub.shared.subscribe { viewController, error in
         lock.lock()
-        guard !fired else { lock.unlock(); return }
+        guard !fired else {
+            lock.unlock()
+            return false
+        }
         fired = true
         lock.unlock()
 
@@ -47,6 +50,7 @@ public func gk_local_player_authenticate_async(
                 "failed to encode local player".withCString { cb(nil, $0, ctx) }
             }
         }
+        return false
     }
 }
 

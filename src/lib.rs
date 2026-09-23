@@ -51,7 +51,8 @@ pub use leaderboard_entry::{LeaderboardEntry, LoadEntriesResult};
 pub use leaderboard_set::LeaderboardSet;
 pub use local_player::{
     AuthEvent, AuthEventError, AuthObserver, FriendsAuthorizationStatus,
-    IdentityVerificationSignature, LocalPlayer, PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME,
+    IdentityVerificationSignature, LocalPlayer, SignInViewController,
+    PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME,
 };
 pub use local_player_listener::{LocalPlayerEvent, LocalPlayerListener};
 pub use matchmaker_ui::{
