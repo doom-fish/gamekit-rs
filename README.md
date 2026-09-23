@@ -2,7 +2,7 @@
 
 Safe Rust bindings for Apple's `GameKit` framework on macOS.
 
-## What is covered in v0.8.9
+## What is covered in v0.9.0
 
 `gamekit-rs` covers 65 of the 67 audited top-level macOS-available `GameKit` symbols in [`COVERAGE_AUDIT.md`](COVERAGE_AUDIT.md) (the two gaps are enums used only by the deprecated `GKGameSession` API) and exposes logical modules for:
 
@@ -29,7 +29,7 @@ Enable the `async` feature to get executor-agnostic `Future` wrappers for the cu
 
 ```toml
 [dependencies]
-gamekit = { version = "0.8.9", features = ["async"] }
+gamekit-rs = { version = "0.9", features = ["async"] }
 ```
 
 | Wrapper | Futures |

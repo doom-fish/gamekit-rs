@@ -1,5 +1,82 @@
 # Changelog
 
+All notable changes to `gamekit-rs` are documented here.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.9.0] - Unreleased
+
+### Security
+
+- Synchronous calls copy their strings and bytes and retain the objects they
+  need before starting the Swift task, and the 30-second timeout now cancels
+  that task. A timed-out call used to keep running and read memory Rust had
+  already freed, so turn-based calls could upload freed bytes as match data.
+  The async thunks read their C strings after Rust had dropped them.
+- `AuthObserver`, `MatchDelegate`, `LocalPlayerListener`, the matchmaking
+  view-controller delegates, the Game Center view handler and the
+  invite-recipient response handler keep their closures in a
+  `doom_fish_utils` `CallbackContext` that the Swift side retains. Dropping a
+  guard no longer frees a closure `GameKit` is still calling, and dropping or
+  replacing one guard no longer clears a handler installed by another.
+- Matchmaking view controllers, the Game Center view and dialog dismissal run
+  on the main thread only. They used to be created and driven from a
+  background task, and their Rust wrappers were `Send`.
+
+### Fixed
+
+- Synchronous calls made on the main thread, where `GameKit` delivers their
+  results, return `GameKitError::WrongThread` at once instead of blocking for
+  30 seconds and then timing out.
+- `AccessPoint::trigger` and `trigger_state` return immediately instead of
+  blocking until Game Center closed and then reporting a timeout.
+- Friend and player lookups, including match requests with recipients,
+  return `GameKitError::Unavailable` when the process has no bundle
+  identifier instead of aborting on a `GameKit` exception.
+- The sign-in view controller that `GameKit` passes to the authenticate
+  handler is kept instead of discarded, so signed-out players can sign in.
+- A second `AuthObserver` no longer replaces the first, and dropping an
+  observer no longer strands a pending `authenticate()`.
+- The Swift bridge is built for macOS 12.0, as the README states. build.rs
+  forced a macOS 26.0 target whenever the macOS 26 SDK was present; the
+  game-activity listener method is now installed at run time and decodes
+  activities only on macOS 26.
+- COVERAGE_AUDIT counts `GKConnectionState` and `GKTransportType` as gaps and
+  `GKScore` and `GKNotificationBanner` as wrapped instead of listing all four
+  as exempt (65 verified, 2 gaps, 34 exempt).
+
+### Changed
+
+- **Breaking:** `GameKitError` has a new `WrongThread` variant.
+- **Breaking:** `MatchmakerViewController`, `TurnBasedMatchmakerViewController`,
+  `MatchmakerViewControllerDelegate`,
+  `TurnBasedMatchmakerViewControllerDelegate` and
+  `GameCenterControllerDelegate` are no longer `Send`. Creating or presenting
+  a matchmaking view controller, adding players, updating a hosted player,
+  presenting the Game Center view and dismissing a dialog return
+  `GameKitError::WrongThread` off the main thread.
+- **Breaking:** matchmaking view controllers refuse requests with
+  `recipient_ids` (`GameKitError::Unavailable`) because `GameKit` cannot
+  resolve recipients on the main thread, and `set_hosted_player_connected`
+  accepts only players the controller has reported
+  (`GameKitError::NotFound` otherwise).
+- **Breaking:** `AccessPoint::trigger` and `trigger_state` no longer wait for
+  Game Center to close.
+- Requires `doom-fish-utils` `>=0.4.1, <0.5`; `rust-version` is 1.82.
+
+### Added
+
+- `AccessPoint::trigger_target` with `AccessPointTrigger`, covering all
+  thirteen `GKAccessPoint` trigger variants and an optional completion.
+  Targets from macOS 15, 26 and 26.2 return `GameKitError::Unavailable` on
+  older systems.
+- `LocalPlayer::sign_in_view_controller()` and `SignInViewController`.
+
+## [0.8.11] - 2026-06-06
+
+- Hardened the FFI: fixed delegate use-after-frees, consolidated retain/release, and guarded match-data slices against null pointers and panics.
+
 ## [0.8.10] - 2026-05-20
 
 - Migrated local `take_string` body to call `doom_fish_utils::ffi_string::take_owned_cstring_c`. Centralises the duplicated FFI take-string pattern fleet-wide. No public API change.

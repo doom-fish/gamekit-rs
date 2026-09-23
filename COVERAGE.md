@@ -1,6 +1,6 @@
 # GameKit coverage audit
 
-`gamekit-rs` v0.8.9 targets the GameKit APIs that are practical to expose from a safe Rust surface on macOS and covers 65 of the 67 audited top-level macOS-available symbols tracked in [`COVERAGE_AUDIT.md`](COVERAGE_AUDIT.md); the gaps are `GKConnectionState` and `GKTransportType`, which only the deprecated `GKGameSession` API uses. The crate still mirrors the `screencapturekit-rs` bridge layout:
+`gamekit-rs` v0.9.0 targets the GameKit APIs that are practical to expose from a safe Rust surface on macOS and covers 65 of the 67 audited top-level macOS-available symbols tracked in [`COVERAGE_AUDIT.md`](COVERAGE_AUDIT.md); the gaps are `GKConnectionState` and `GKTransportType`, which only the deprecated `GKGameSession` API uses. The crate still mirrors the `screencapturekit-rs` bridge layout:
 
 - one Swift bridge file per logical area
 - `@_cdecl` C-callable entry points
@@ -10,7 +10,7 @@
 
 ## Status by logical area
 
-| Area | Apple surface audited | Rust surface in v0.8.9 | Status |
+| Area | Apple surface audited | Rust surface in v0.9.0 | Status |
 | --- | --- | --- | --- |
 | Error | `GKErrorCode`, `GKErrorDomain` | `ErrorCode`, `ERROR_DOMAIN`, `GameKitFrameworkError::error_code` | Covered |
 | LocalPlayer | `GKLocalPlayer` snapshot, auth handler, recent players, challengeable friends, identity verification signature, friends authorization, friends lookup, friend request presentation, auth-change notification constant | `LocalPlayer`, `AuthObserver`, `SignInViewController`, `FriendsAuthorizationStatus`, `IdentityVerificationSignature`, `PLAYER_AUTHENTICATION_DID_CHANGE_NOTIFICATION_NAME` | Broad coverage of local-player data and exported constants |
