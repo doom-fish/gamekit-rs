@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -19,6 +21,9 @@ fn unknown_player() -> Player {
 
 #[test]
 fn triggers_return_without_waiting_for_game_center() {
+    if !common::live_tests_enabled("triggers_return_without_waiting_for_game_center") {
+        return;
+    }
     let started = Instant::now();
     AccessPoint::shared().trigger().expect("default trigger");
     AccessPoint::shared()
