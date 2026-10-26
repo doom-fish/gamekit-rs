@@ -66,7 +66,7 @@ fn main() {
         "--package-path".to_owned(),
         swift_dir.to_owned(),
         "--scratch-path".to_owned(),
-        swift_build_dir.clone(),
+        swift_build_dir,
     ];
 
     if has_macos26_sdk {
